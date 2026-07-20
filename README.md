@@ -58,7 +58,7 @@ Bot: `@ai_55q_bot`.
 ## Auth flow
 
 - Telegram Mini App sends `Telegram.WebApp.initData` to `/api/auth/telegram`; the server validates the signature and creates an HttpOnly session cookie.
-- A normal browser opens `/api/auth/telegram-browser/start`, gets redirected to `https://t.me/ai_55q_bot?start=auth_<token>`, waits on `/api/auth/telegram-browser/status`, and receives the same HttpOnly session cookie after the bot webhook confirms the token.
+- A normal browser opens `/api/auth/telegram-browser/start`, gets redirected to `tg://resolve?domain=ai_55q_bot&start=login_<token>`, waits on `/api/auth/telegram-browser/status`, and receives the same HttpOnly session cookie after the bot webhook confirms the token.
 - The raw browser login token is one-time and stored in the database only as a SHA-256 hash.
 
 ## Current MVP

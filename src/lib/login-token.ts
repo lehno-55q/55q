@@ -3,7 +3,7 @@ import { prisma } from "./db";
 import { botUsername } from "./env";
 import { upsertTelegramUser } from "./domain";
 
-const tokenPrefix = "auth_";
+const tokenPrefix = "login_";
 const rawTokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
 function hashToken(token: string) {
@@ -23,7 +23,7 @@ export async function createLoginToken() {
   return {
     token,
     expiresAt,
-    botUrl: `https://t.me/${botUsername}?start=${tokenPrefix}${token}`,
+    botUrl: `tg://resolve?domain=${botUsername}&start=${tokenPrefix}${token}`,
   };
 }
 

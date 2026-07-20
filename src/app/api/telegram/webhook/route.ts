@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   const authToken = parseAuthPayload(payload);
   if (authToken) {
     const confirmed = await confirmLoginToken({
-      startPayload: `auth_${authToken}`,
+      startPayload: `login_${authToken}`,
       telegramId: String(message.from?.id || chatId),
       telegramName: message.from?.username,
       firstName: message.from?.first_name,
