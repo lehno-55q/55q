@@ -8,15 +8,10 @@ import {
   Copy,
   Gift,
   Heart,
-  Home,
   Lock,
-  Menu,
   MessageCircle,
   Send,
   Shield,
-  Sparkles,
-  UserRound,
-  X,
 } from "lucide-react";
 import { botUsername, reportPriceRub } from "@/lib/env";
 import { categories, questions, tests } from "@/lib/tests";
@@ -41,12 +36,12 @@ type Report = {
   recommendations?: string[];
 };
 type AppState = {
-  user: { id: string; displayName?: string | null; telegramName?: string | null; age?: number | null } | null;
+  user: { id: string; displayName?: string | null; telegramName?: string | null; firstName?: string | null; age?: number | null } | null;
   pair?: Pair | null;
   session?: Session | null;
 } | null;
 
-type Screen = "home" | "tests" | "auth" | "profile" | "pair" | "test" | "result";
+type Screen = "home" | "tests" | "profile" | "pair" | "test" | "result";
 type ButtonVariant = "primary" | "secondary" | "danger" | "outline" | "ghost";
 
 async function api(path: string, body?: unknown) {
@@ -65,8 +60,8 @@ export default function HomePage() {
   const [answers, setAnswers] = useState<Record<number, unknown>>({});
   const [current, setCurrent] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [loginStatus, setLoginStatus] = useState("");
+  const [environmentReady, setEnvironmentReady] = useState(false);
+  const [browserOnly, setBrowserOnly] = useState(false);
   const [toast, setToast] = useState<{ tone: "success" | "warning" | "danger"; text: string } | null>(null);
   const inviteFromUrl = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("invite") : "";
 
@@ -78,6 +73,7 @@ export default function HomePage() {
   const partnerReady = Boolean(session && members.length > 1 && (session.answers?.filter((answer) => answer.userId !== user?.id).length || 0) >= questions.length);
   const mineReady = userAnswers.length >= questions.length;
   const report = session?.freeReport || session?.fullReport;
+  const userLabel = user?.displayName || user?.telegramName || user?.firstName || "";
 
   async function refresh() {
     setState(await api("/api/me"));
@@ -94,7 +90,6 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (user) return;
     let cancelled = false;
     let attempts = 0;
 
@@ -103,13 +98,19 @@ export default function HomePage() {
       tg?.ready?.();
       tg?.expand?.();
       if (!tg?.initData) {
-        if (attempts < 20 && !cancelled) {
+        if (attempts < 8 && !cancelled) {
           attempts += 1;
           window.setTimeout(tryMiniAppAuth, 250);
+        } else if (!cancelled) {
+          setBrowserOnly(true);
+          setEnvironmentReady(true);
         }
         return;
       }
 
+      setBrowserOnly(false);
+      setEnvironmentReady(true);
+      if (user) return;
       setBusy(true);
       try {
         await api("/api/auth/telegram", { initData: tg.initData });
@@ -146,52 +147,11 @@ export default function HomePage() {
     }
   }
 
-  async function auth() {
-    const tg = (window as Window & { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp;
-    if (tg?.initData) {
-      await run(async () => {
-        await api("/api/auth/telegram", { initData: tg.initData });
-        setScreen("home");
-      }, "Вход выполнен");
+  async function startTest() {
+    if (!user) {
+      setToast({ tone: "warning", text: "Откройте приложение внутри Telegram, чтобы продолжить" });
       return;
     }
-
-    setBusy(true);
-    setLoginStatus("Откройте Telegram, нажмите Start у бота и вернитесь в браузер.");
-    setToast({ tone: "warning", text: "Ждём подтверждение входа в Telegram" });
-    try {
-      const opened = window.open("/api/auth/telegram-browser/start", "_blank", "noopener,noreferrer");
-      if (!opened) {
-        window.location.href = "/api/auth/telegram-browser/start";
-      }
-
-      for (let attempt = 0; attempt < 60; attempt += 1) {
-        await new Promise((resolve) => window.setTimeout(resolve, 2000));
-        const status = await api("/api/auth/telegram-browser/status");
-        if (status.status === "confirmed") {
-          setLoginStatus("Вход подтвержден.");
-          await refresh();
-          setScreen("home");
-          setToast({ tone: "success", text: "Вход подтвержден" });
-          return;
-        }
-        if (status.status === "expired") {
-          setLoginStatus("Ссылка для входа истекла. Попробуйте ещё раз.");
-          setToast({ tone: "warning", text: "Ссылка для входа истекла" });
-          return;
-        }
-      }
-      setLoginStatus("Время ожидания истекло. Попробуйте войти еще раз.");
-      setToast({ tone: "warning", text: "Вход не подтверждён за 2 минуты" });
-    } catch (error) {
-      setToast({ tone: "danger", text: error instanceof Error ? error.message : "Не удалось начать вход" });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function startTest() {
-    if (!user) return setScreen("auth");
     if (!user.displayName || !user.age) return setScreen("profile");
     if (!pair || members.length < 2) return setScreen("pair");
     const created = await api("/api/session", {});
@@ -214,28 +174,29 @@ export default function HomePage() {
 
   function navigate(nextScreen: Screen) {
     setScreen(nextScreen);
-    setMenuOpen(false);
+  }
+
+  if (!environmentReady) {
+    return <EnvironmentLoadingScreen />;
+  }
+
+  if (browserOnly) {
+    return <BrowserOnlyScreen />;
   }
 
   return (
     <main className="appShell">
-      <section className="appFrame" aria-label="55Q application">
+      <section className="appFrame" aria-label="55 Вопросов application">
         <AppHeader
           screen={screen}
-          userName={user?.displayName || user?.telegramName || ""}
-          menuOpen={menuOpen}
+          userName={userLabel}
           onBack={screen === "home" ? undefined : () => navigate("home")}
-          onToggleMenu={() => setMenuOpen((value) => !value)}
-          onNavigate={navigate}
-          hasPair={Boolean(pair)}
-          hasSession={Boolean(session)}
         />
 
         {toast && <Toast tone={toast.tone}>{toast.text}</Toast>}
 
         {screen === "home" && <HomeScreen busy={busy} onStart={startTest} onTests={() => navigate("tests")} />}
         {screen === "tests" && <TestsScreen onStart={startTest} />}
-        {screen === "auth" && <AuthScreen busy={busy} status={loginStatus} onAuth={auth} />}
         {screen === "profile" && (
           <ProfileScreen
             busy={busy}
@@ -277,23 +238,13 @@ export default function HomePage() {
 function AppHeader({
   screen,
   userName,
-  menuOpen,
   onBack,
-  onToggleMenu,
-  onNavigate,
-  hasPair,
-  hasSession,
 }: {
   screen: Screen;
   userName: string;
-  menuOpen: boolean;
   onBack?: () => void;
-  onToggleMenu: () => void;
-  onNavigate: (screen: Screen) => void;
-  hasPair: boolean;
-  hasSession: boolean;
 }) {
-  const title = screen === "home" ? "55Q" : screen === "tests" ? "Выберите тест" : screen === "pair" ? "Пригласите партнёра" : screen === "result" ? "Ваш результат" : "55Q";
+  const title = screen === "home" ? "55 Вопросов" : screen === "tests" ? "Выберите тест" : screen === "pair" ? "Пригласите партнёра" : screen === "result" ? "Ваш результат" : "55 Вопросов";
 
   return (
     <header className="appHeader">
@@ -308,22 +259,10 @@ function AppHeader({
           </span>
         )}
         <div>
-          <p className="eyebrow">{userName || "SoulMateScan"}</p>
+          <p className="eyebrow">{userName || "55 Вопросов"}</p>
           <h1 className="headerTitle">{title}</h1>
         </div>
       </div>
-      <IconButton label={menuOpen ? "Закрыть меню" : "Открыть меню"} onClick={onToggleMenu}>
-        {menuOpen ? <X size={20} /> : <Menu size={20} />}
-      </IconButton>
-      {menuOpen && (
-        <nav className="topMenu" aria-label="Главное меню">
-          <MenuItem icon={<Home size={18} />} label="Главная" onClick={() => onNavigate("home")} />
-          <MenuItem icon={<Sparkles size={18} />} label="Тесты" onClick={() => onNavigate("tests")} />
-          <MenuItem icon={<UserRound size={18} />} label="Профиль" onClick={() => onNavigate("profile")} />
-          {hasPair && <MenuItem icon={<Send size={18} />} label="Приглашение" onClick={() => onNavigate("pair")} />}
-          {hasSession && <MenuItem icon={<Lock size={18} />} label="Результат" onClick={() => onNavigate("result")} />}
-        </nav>
-      )}
     </header>
   );
 }
@@ -355,6 +294,45 @@ function HomeScreen({ busy, onStart, onTests }: { busy: boolean; onStart: () => 
   );
 }
 
+function EnvironmentLoadingScreen() {
+  return (
+    <main className="appShell browserOnlyShell">
+      <section className="appFrame" aria-label="Проверка Telegram Mini App">
+        <Card className="browserOnlyCard">
+          <span className="brandMark browserOnlyIcon" aria-hidden="true">
+            <Heart size={24} />
+          </span>
+          <SectionIntro title="55 Вопросов" text="Проверяем запуск внутри Telegram..." />
+        </Card>
+      </section>
+    </main>
+  );
+}
+
+function BrowserOnlyScreen() {
+  return (
+    <main className="appShell browserOnlyShell">
+      <section className="appFrame" aria-label="55 Вопросов">
+        <Card className="browserOnlyCard">
+          <span className="brandMark browserOnlyIcon" aria-hidden="true">
+            <Heart size={24} />
+          </span>
+          <SectionIntro
+            title="Откройте приложение в Telegram"
+            text="Извините, в данный момент 55 Вопросов не работает через обычный браузер. Зато приложение отлично работает внутри Telegram Mini App."
+          />
+          <Button asLink href={`https://t.me/${botUsername}`} icon={<Send size={18} />}>
+            Перейти к боту @{botUsername}
+          </Button>
+          <Notice tone="purple" icon={<Shield size={18} />}>
+            В Telegram вход выполняется автоматически и безопасно через Mini App.
+          </Notice>
+        </Card>
+      </section>
+    </main>
+  );
+}
+
 function TestsScreen({ onStart }: { onStart: () => void }) {
   return (
     <div className="screenStack">
@@ -375,21 +353,6 @@ function TestsScreen({ onStart }: { onStart: () => void }) {
         Тест 18+ доступен только пользователям старше 18 лет.
       </Notice>
     </div>
-  );
-}
-
-function AuthScreen({ busy, status, onAuth }: { busy: boolean; status: string; onAuth: () => void }) {
-  return (
-    <Card className="authCard">
-      <DecorativeArt kind="telegram" />
-      <SectionIntro title="Войдите через Telegram" text="В Mini App вход пройдёт автоматически. В обычном браузере откроется бот для подтверждения." />
-      <Button loading={busy} onClick={onAuth} icon={<Send size={18} />}>
-        Продолжить через Telegram
-      </Button>
-      <Notice tone={status ? "warning" : "purple"} icon={<Shield size={18} />}>
-        {status || "После подтверждения все запросы будут авторизованы через защищённую HttpOnly cookie."}
-      </Notice>
-    </Card>
   );
 }
 
@@ -767,15 +730,6 @@ function Toast({ children, tone }: { children: React.ReactNode; tone: "success" 
       {tone === "success" ? <Check size={16} /> : <Shield size={16} />}
       <span>{children}</span>
     </div>
-  );
-}
-
-function MenuItem({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick}>
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }
 

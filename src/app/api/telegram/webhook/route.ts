@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     await sendTelegramMessage(
       String(chatId),
       confirmed
-        ? "<b>✅ Авторизация выполнена успешно</b>\nВернитесь в браузер, 55Q уже завершает вход."
+        ? "<b>✅ Авторизация выполнена успешно</b>\nОткройте приложение 55 Вопросов внутри Telegram."
         : "<b>⚠️ Ссылка для входа не сработала</b>\nОна истекла или уже была использована. Попробуйте войти ещё раз.",
     );
     return NextResponse.json({ ok: true });
@@ -65,12 +65,12 @@ export async function POST(request: NextRequest) {
   if (!payload) {
     await sendTelegramMessage(
       String(chatId),
-      "<b>👋 Я на связи</b>\nЧтобы войти на сайт, нажмите кнопку «Продолжить через Telegram» в браузере ещё раз. В сообщении /start должен быть одноразовый код.",
+      "<b>👋 Я на связи</b>\n55 Вопросов сейчас работает только как Telegram Mini App. Откройте приложение через кнопку меню бота.",
     );
     return NextResponse.json({ ok: true });
   }
 
   const link = payload ? inviteLink(payload) : botStartLink();
-  await sendTelegramMessage(String(chatId), `Добро пожаловать в 55Q. Откройте приложение: ${link}`);
+  await sendTelegramMessage(String(chatId), `Добро пожаловать в 55 Вопросов. Откройте приложение: ${link}`);
   return NextResponse.json({ ok: true });
 }

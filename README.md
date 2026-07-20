@@ -1,4 +1,4 @@
-# 55Q
+# 55 Вопросов
 
 MVP сайта и Telegram-бота для совместного теста отношений: профиль, пара по invite-коду, 55 вопросов, скрытые ответы, краткий DeepSeek-результат и разблокировка полного отчета за 149 RUB.
 
@@ -58,7 +58,7 @@ Bot: `@ai_55q_bot`.
 ## Auth flow
 
 - Telegram Mini App sends `Telegram.WebApp.initData` to `/api/auth/telegram`; the server validates the signature and creates an HttpOnly session cookie.
-- A normal browser creates a login challenge and opens `https://t.me/ai_55q_bot?start=login_<token>`, waits on `/api/auth/telegram-browser/status`, and receives the same HttpOnly session cookie after the bot webhook confirms the token. The native `tg://resolve?...` form is kept as a fallback value, but mobile browsers are more reliable with the universal `t.me` link.
+- A normal browser is not supported in the current MVP: the site shows a Telegram-only screen with a link to `@ai_55q_bot`.
 - The raw browser login token is one-time and stored in the database only as a SHA-256 hash.
 
 ## Current MVP

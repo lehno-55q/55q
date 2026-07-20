@@ -118,7 +118,7 @@ async function maybeCompleteSession(sessionId: string) {
     where: { id: sessionId },
     data: { status: "REPORT_READY", freeReport: report as object, fullReport: report as object },
   });
-  await notifyPair(session.pairId, "Оба участника завершили 55Q. Краткий результат уже открыт.");
+  await notifyPair(session.pairId, "Оба участника завершили 55 Вопросов. Краткий результат уже открыт.");
   return updated;
 }
 

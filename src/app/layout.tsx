@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "55Q",
-  description: "55 Questions relationship compatibility test",
+  title: "55 Вопросов",
+  description: "Тест совместимости для пары в Telegram Mini App",
 };
 
 export default function RootLayout({
