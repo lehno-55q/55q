@@ -156,15 +156,12 @@ export default function HomePage() {
       return;
     }
 
-    const authWindow = window.open("/api/auth/telegram-browser/start", "_blank", "noopener,noreferrer");
     setBusy(true);
-    setLoginStatus("Откройте Telegram и нажмите Start у бота.");
+    setLoginStatus("Откройте Telegram, нажмите Start у бота и вернитесь в браузер.");
     setToast({ tone: "warning", text: "Ждём подтверждение входа в Telegram" });
     try {
-      if (!authWindow) {
-        window.location.href = "/api/auth/telegram-browser/start";
-        return;
-      }
+      const login = await api("/api/auth/start", {});
+      window.location.href = login.botUrl;
 
       for (let attempt = 0; attempt < 60; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 2000));

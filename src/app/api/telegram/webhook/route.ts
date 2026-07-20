@@ -45,11 +45,12 @@ export async function POST(request: NextRequest) {
       telegramName: message.from?.username,
       firstName: message.from?.first_name,
     });
+
     await sendTelegramMessage(
       String(chatId),
       confirmed
-        ? "Авторизация подтверждена, вернитесь на сайт."
-        : "Ссылка для входа истекла или уже была использована. Попробуйте войти ещё раз.",
+        ? "<b>✅ Авторизация выполнена успешно</b>\nВернитесь в браузер, 55Q уже завершает вход."
+        : "<b>⚠️ Ссылка для входа не сработала</b>\nОна истекла или уже была использована. Попробуйте войти ещё раз.",
     );
     return NextResponse.json({ ok: true });
   }
