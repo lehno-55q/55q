@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TestSessionStatus {
+  IN_PROGRESS
+  BOTH_COMPLETED
+  REPORT_READY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+}
+
+model User {
+  id             String        @id @default(cuid())
+  telegramId     String        @unique
+  telegramName   String?
+  firstName      String?
+  displayName    String?
+  age            Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  pairMembership PairMember?
+  answers        Answer[]
+  payments       Payment[]
+}
+
+model Pair {
+  id          String        @id @default(cuid())
+  name        String
+  inviteCode  String        @unique
+  createdById String
+  createdAt   DateTime      @default(now())
+  members     PairMember[]
+  sessions    TestSession[]
+}
+
+model PairMember {
+  id       String   @id @default(cuid())
+  pairId   String
+  userId   String   @unique
+  joinedAt DateTime @default(now())
+  pair     Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pairId, userId])
+}
+
+model TestSession {
+  id             String            @id @default(cuid())
+  pairId         String
+  testSlug       String
+  status         TestSessionStatus @default(IN_PROGRESS)
+  freeReport     Json?
+  fullReport     Json?
+  fullUnlocked   Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  pair           Pair              @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  answers        Answer[]
+  payments       Payment[]
+
+  @@index([pairId, testSlug])
+}
+
+model Answer {
+  id        String      @id @default(cuid())
+  sessionId String
+  userId    String
+  question  Int
+  value     Json
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  session   TestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId, question])
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  sessionId String
+  userId    String
+  amountRub Int
+  status    PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  paidAt    DateTime?
+  session   TestSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
