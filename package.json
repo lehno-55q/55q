@@ -2,12 +2,16 @@
   "name": "55q",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22 <25"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "migrate:deploy": "prisma migrate deploy",
+    "deploy:start": "npm run migrate:deploy && npm run start",
     "postinstall": "prisma generate"
   },
   "dependencies": {

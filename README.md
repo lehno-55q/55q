@@ -38,8 +38,10 @@ npm run dev
 For Railway the start command is already in `railway.json`:
 
 ```bash
-npm run migrate:deploy && npm run start
+npm run deploy:start
 ```
+
+`deploy:start` runs `prisma migrate deploy` first, so every unapplied migration is applied before the Next.js server starts.
 
 ## Telegram webhook
 
