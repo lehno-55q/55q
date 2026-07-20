@@ -1,9 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Heart, Lock, Menu, Send, Shield, Sparkles, UserRound, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Brain,
+  Check,
+  Copy,
+  Gift,
+  Heart,
+  Home,
+  Lock,
+  Menu,
+  MessageCircle,
+  Send,
+  Shield,
+  Sparkles,
+  UserRound,
+  X,
+} from "lucide-react";
 import { botUsername, reportPriceRub } from "@/lib/env";
-import { questions, tests, categories } from "@/lib/tests";
+import { categories, questions, tests } from "@/lib/tests";
 import "./ui.css";
 
 type Answer = { id: string; userId: string; question: number; value: unknown };
@@ -25,10 +41,13 @@ type Report = {
   recommendations?: string[];
 };
 type AppState = {
-  user: { id: string; displayName?: string | null; age?: number | null } | null;
+  user: { id: string; displayName?: string | null; telegramName?: string | null; age?: number | null } | null;
   pair?: Pair | null;
   session?: Session | null;
 } | null;
+
+type Screen = "home" | "tests" | "auth" | "profile" | "pair" | "test" | "result";
+type ButtonVariant = "primary" | "secondary" | "danger" | "outline" | "ghost";
 
 async function api(path: string, body?: unknown) {
   const response = await fetch(path, {
@@ -40,14 +59,15 @@ async function api(path: string, body?: unknown) {
   return response.json();
 }
 
-export default function Home() {
+export default function HomePage() {
   const [state, setState] = useState<AppState>(null);
-  const [screen, setScreen] = useState("home");
+  const [screen, setScreen] = useState<Screen>("home");
   const [answers, setAnswers] = useState<Record<number, unknown>>({});
   const [current, setCurrent] = useState(0);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [loginStatus, setLoginStatus] = useState("");
+  const [toast, setToast] = useState<{ tone: "success" | "warning" | "danger"; text: string } | null>(null);
   const inviteFromUrl = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("invite") : "";
 
   const user = state?.user;
@@ -73,11 +93,15 @@ export default function Home() {
     };
   }, []);
 
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<void>, successText?: string) {
     setBusy(true);
+    setToast(null);
     try {
       await action();
       await refresh();
+      if (successText) setToast({ tone: "success", text: successText });
+    } catch (error) {
+      setToast({ tone: "danger", text: error instanceof Error ? error.message : "Что-то пошло не так" });
     } finally {
       setBusy(false);
     }
@@ -86,29 +110,37 @@ export default function Home() {
   async function auth() {
     const tg = (window as Window & { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp;
     if (tg?.initData) {
-      await run(() => api("/api/auth/telegram", { initData: tg.initData }));
-      setScreen("home");
-    } else {
-      setBusy(true);
-      setLoginStatus("Откройте Telegram и нажмите Start у бота.");
-      try {
-        const login = await api("/api/auth/start", {});
-        window.open(login.botUrl, "_blank", "noopener,noreferrer");
+      await run(async () => {
+        await api("/api/auth/telegram", { initData: tg.initData });
+        setScreen("home");
+      }, "Вход выполнен");
+      return;
+    }
 
-        for (let attempt = 0; attempt < 60; attempt += 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, 2000));
-          const status = await api("/api/auth/status", { token: login.token });
-          if (status.ok) {
-            setLoginStatus("Вход подтвержден.");
-            await refresh();
-            setScreen("home");
-            return;
-          }
+    setBusy(true);
+    setLoginStatus("Откройте Telegram и нажмите Start у бота.");
+    setToast({ tone: "warning", text: "Ждём подтверждение входа в Telegram" });
+    try {
+      const login = await api("/api/auth/start", {});
+      window.open(login.botUrl, "_blank", "noopener,noreferrer");
+
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        const status = await api("/api/auth/status", { token: login.token });
+        if (status.ok) {
+          setLoginStatus("Вход подтвержден.");
+          await refresh();
+          setScreen("home");
+          setToast({ tone: "success", text: "Вход подтвержден" });
+          return;
         }
-        setLoginStatus("Время ожидания истекло. Попробуйте войти еще раз.");
-      } finally {
-        setBusy(false);
       }
+      setLoginStatus("Время ожидания истекло. Попробуйте войти еще раз.");
+      setToast({ tone: "warning", text: "Вход не подтверждён за 2 минуты" });
+    } catch (error) {
+      setToast({ tone: "danger", text: error instanceof Error ? error.message : "Не удалось начать вход" });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -122,191 +154,305 @@ export default function Home() {
   }
 
   async function saveCurrent(value: unknown) {
-    const activeSession = session || (await api("/api/session", {}));
-    await api("/api/answer", { sessionId: activeSession.id, question: questions[current].id, value });
-    setAnswers({ ...answers, [questions[current].id]: value });
-    if (current < questions.length - 1) setCurrent(current + 1);
-    else {
-      await refresh();
-      setScreen("result");
-    }
+    await run(async () => {
+      const activeSession = session || (await api("/api/session", {}));
+      await api("/api/answer", { sessionId: activeSession.id, question: questions[current].id, value });
+      setAnswers({ ...answers, [questions[current].id]: value });
+      if (current < questions.length - 1) {
+        setCurrent(current + 1);
+      } else {
+        setScreen("result");
+      }
+    }, "Ответ сохранён");
   }
 
-  function navigate(nextScreen: string) {
+  function navigate(nextScreen: Screen) {
     setScreen(nextScreen);
     setMenuOpen(false);
   }
 
   return (
-    <main className="shell">
-      <section className="phone">
-        <header className="topbar">
-          <div className="brand"><Heart size={22} /> 55Q</div>
-          <button className="iconButton" aria-label="menu" onClick={() => setMenuOpen((value) => !value)}>
-            {menuOpen ? <X size={21} /> : <Menu size={21} />}
-          </button>
-          {menuOpen && (
-            <nav className="topMenu">
-              <button onClick={() => navigate("home")}><Heart size={18} /> Главная</button>
-              <button onClick={() => navigate("tests")}><Sparkles size={18} /> Тесты</button>
-              <button onClick={() => navigate(user ? "profile" : "auth")}><UserRound size={18} /> Профиль</button>
-              {pair && <button onClick={() => navigate("pair")}><Send size={18} /> Приглашение</button>}
-              {session && <button onClick={() => navigate("result")}><Lock size={18} /> Результат</button>}
-            </nav>
-          )}
-        </header>
+    <main className="appShell">
+      <section className="appFrame" aria-label="55Q application">
+        <AppHeader
+          screen={screen}
+          userName={user?.displayName || user?.telegramName || ""}
+          menuOpen={menuOpen}
+          onBack={screen === "home" ? undefined : () => navigate("home")}
+          onToggleMenu={() => setMenuOpen((value) => !value)}
+          onNavigate={navigate}
+          hasPair={Boolean(pair)}
+          hasSession={Boolean(session)}
+        />
 
-        {screen === "home" && (
-          <>
-            <section className="intro">
-              <h1>Узнайте правду <span>о ваших отношениях</span></h1>
-              <p>Пройдите тест вместе с партнером и получите персональный DeepSeek-анализ вашей совместимости.</p>
-              <div className="coupleArt">💑</div>
-              <div className="benefits">
-                <p><Heart size={18} /> 3 уникальных теста для любых отношений</p>
-                <p><Sparkles size={18} /> AI-анализ и точные результаты</p>
-                <p><Shield size={18} /> Ответы скрыты до завершения обоими</p>
-              </div>
-              <button className="primary" onClick={startTest} disabled={busy}>
-                Создать пару и начать тест
-              </button>
-            </section>
-          </>
-        )}
+        {toast && <Toast tone={toast.tone}>{toast.text}</Toast>}
 
-        {screen === "tests" && <TestList onStart={startTest} />}
-
-        {screen === "auth" && (
-          <Panel title="Войдите через Telegram">
-            <p>Так мы привяжем ответы к вашему профилю и отправим уведомление, когда пара будет готова.</p>
-            <button className="primary" onClick={auth} disabled={busy}><Send size={18} /> Продолжить через Telegram</button>
-            <small>{loginStatus || "В Mini App вход пройдет автоматически. В браузере откроется бот для подтверждения."}</small>
-          </Panel>
-        )}
-
+        {screen === "home" && <HomeScreen busy={busy} onStart={startTest} onTests={() => navigate("tests")} />}
+        {screen === "tests" && <TestsScreen onStart={startTest} />}
+        {screen === "auth" && <AuthScreen busy={busy} status={loginStatus} onAuth={auth} />}
         {screen === "profile" && (
-          <ProfileForm onSubmit={(data) => run(() => api("/api/profile", data).then(() => setScreen(inviteFromUrl ? "pair" : "home")))} />
+          <ProfileScreen
+            busy={busy}
+            onSubmit={(data) =>
+              run(async () => {
+                await api("/api/profile", data);
+                setScreen(inviteFromUrl ? "pair" : "home");
+              }, "Профиль сохранён")
+            }
+          />
         )}
-
         {screen === "pair" && (
-          <PairForm
-            invite={inviteFromUrl || ""}
+          <PairScreen
             pair={pair}
             members={members}
-            onSubmit={(data) => run(() => api("/api/pair", data))}
+            invite={inviteFromUrl || ""}
+            busy={busy}
+            onSubmit={(data) => run(() => api("/api/pair", data), data.mode === "join" ? "Вы вступили в пару" : "Пара создана")}
           />
         )}
-
         {screen === "test" && session && (
-          <QuestionView
-            key={current}
-            index={current}
-            total={questions.length}
-            onAnswer={saveCurrent}
-            disabled={busy}
-          />
+          <QuestionScreen key={current} index={current} total={questions.length} disabled={busy} onAnswer={saveCurrent} />
         )}
-
         {screen === "result" && (
-          <ResultView
+          <ResultScreen
             report={report}
             mineReady={mineReady}
             partnerReady={partnerReady}
             unlocked={session?.fullUnlocked}
             sessionId={session?.id}
-            onUnlock={(sessionId: string) => run(() => api("/api/payment/mock", { sessionId }))}
+            onUnlock={(sessionId) => run(() => api("/api/payment/mock", { sessionId }), "Полный отчёт открыт")}
           />
         )}
-
       </section>
     </main>
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="panel"><h2>{title}</h2>{children}</section>;
-}
+function AppHeader({
+  screen,
+  userName,
+  menuOpen,
+  onBack,
+  onToggleMenu,
+  onNavigate,
+  hasPair,
+  hasSession,
+}: {
+  screen: Screen;
+  userName: string;
+  menuOpen: boolean;
+  onBack?: () => void;
+  onToggleMenu: () => void;
+  onNavigate: (screen: Screen) => void;
+  hasPair: boolean;
+  hasSession: boolean;
+}) {
+  const title = screen === "home" ? "55Q" : screen === "tests" ? "Выберите тест" : screen === "pair" ? "Пригласите партнёра" : screen === "result" ? "Ваш результат" : "55Q";
 
-function TestList({ onStart }: { onStart: () => void }) {
   return (
-    <section className="tests">
-      <h2>Выберите тест</h2>
-      {tests.map((test, index) => (
-        <button className={`testCard tone${index}`} key={test.slug} disabled={!test.enabled} onClick={onStart}>
-          <span><b>{test.title}</b><small>{test.subtitle}</small><em>{test.questions} вопросов</em></span>
-          <span className="testArt">{index === 0 ? "💞" : index === 1 ? "💜" : "🔥"}</span>
-        </button>
-      ))}
-    </section>
+    <header className="appHeader">
+      <div className="headerLeft">
+        {onBack ? (
+          <IconButton label="Назад" onClick={onBack}>
+            <ArrowLeft size={20} />
+          </IconButton>
+        ) : (
+          <span className="brandMark" aria-hidden="true">
+            <Heart size={20} />
+          </span>
+        )}
+        <div>
+          <p className="eyebrow">{userName || "SoulMateScan"}</p>
+          <h1 className="headerTitle">{title}</h1>
+        </div>
+      </div>
+      <IconButton label={menuOpen ? "Закрыть меню" : "Открыть меню"} onClick={onToggleMenu}>
+        {menuOpen ? <X size={20} /> : <Menu size={20} />}
+      </IconButton>
+      {menuOpen && (
+        <nav className="topMenu" aria-label="Главное меню">
+          <MenuItem icon={<Home size={18} />} label="Главная" onClick={() => onNavigate("home")} />
+          <MenuItem icon={<Sparkles size={18} />} label="Тесты" onClick={() => onNavigate("tests")} />
+          <MenuItem icon={<UserRound size={18} />} label="Профиль" onClick={() => onNavigate("profile")} />
+          {hasPair && <MenuItem icon={<Send size={18} />} label="Приглашение" onClick={() => onNavigate("pair")} />}
+          {hasSession && <MenuItem icon={<Lock size={18} />} label="Результат" onClick={() => onNavigate("result")} />}
+        </nav>
+      )}
+    </header>
   );
 }
 
-function ProfileForm({ onSubmit }: { onSubmit: (data: { displayName: string; age: number }) => void }) {
+function HomeScreen({ busy, onStart, onTests }: { busy: boolean; onStart: () => void; onTests: () => void }) {
+  return (
+    <div className="screenStack">
+      <section className="heroPanel" aria-labelledby="home-title">
+        <div className="heroCopy">
+          <h2 id="home-title">
+            Узнайте правду <span>о ваших отношениях</span>
+          </h2>
+          <p>Пройдите тест вместе с партнёром и получите персональный DeepSeek-анализ совместимости.</p>
+        </div>
+        <DecorativeArt kind="couple" />
+        <Card className="benefitCard">
+          <Feature icon={<Heart size={20} />} title="3 уникальных теста" text="Для разных этапов отношений" />
+          <Feature icon={<Brain size={20} />} title="AI-анализ" text="Краткий результат сразу после прохождения" />
+          <Feature icon={<Shield size={20} />} title="Конфиденциально" text="Ответы скрыты до завершения обоими" />
+        </Card>
+        <Button loading={busy} onClick={onStart}>
+          Создать пару и начать тест
+        </Button>
+        <Button variant="ghost" onClick={onTests}>
+          Посмотреть все тесты
+        </Button>
+      </section>
+    </div>
+  );
+}
+
+function TestsScreen({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="screenStack">
+      <SectionIntro title="Выберите тест" text="В первой версии активен основной тест для пары. Остальные сценарии уже зарезервированы в интерфейсе." />
+      <div className="testGrid">
+        {tests.map((test, index) => (
+          <button className={`testCard testTone${index}`} key={test.slug} disabled={!test.enabled} onClick={onStart}>
+            <span className="testText">
+              <strong>{test.title}</strong>
+              <span>{test.subtitle}</span>
+              <Badge tone={index === 0 ? "pink" : index === 1 ? "purple" : "coral"}>{test.questions} вопросов</Badge>
+            </span>
+            <DecorativeArt kind={index === 0 ? "couple-small" : index === 1 ? "date" : "hot"} />
+          </button>
+        ))}
+      </div>
+      <Notice tone="purple" icon={<Lock size={18} />}>
+        Тест 18+ доступен только пользователям старше 18 лет.
+      </Notice>
+    </div>
+  );
+}
+
+function AuthScreen({ busy, status, onAuth }: { busy: boolean; status: string; onAuth: () => void }) {
+  return (
+    <Card className="authCard">
+      <DecorativeArt kind="telegram" />
+      <SectionIntro title="Войдите через Telegram" text="В Mini App вход пройдёт автоматически. В обычном браузере откроется бот для подтверждения." />
+      <Button loading={busy} onClick={onAuth} icon={<Send size={18} />}>
+        Продолжить через Telegram
+      </Button>
+      <Notice tone={status ? "warning" : "purple"} icon={<Shield size={18} />}>
+        {status || "После подтверждения все запросы будут авторизованы через защищённую HttpOnly cookie."}
+      </Notice>
+    </Card>
+  );
+}
+
+function ProfileScreen({ busy, onSubmit }: { busy: boolean; onSubmit: (data: { displayName: string; age: number }) => void }) {
   const [displayName, setName] = useState("");
   const [age, setAge] = useState(18);
+  const valid = displayName.trim().length >= 2 && age >= 18;
+
   return (
-    <Panel title="Создайте профиль">
-      <input placeholder="Ваше имя или ник" value={displayName} onChange={(event) => setName(event.target.value)} />
-      <input type="number" min={18} max={99} value={age} onChange={(event) => setAge(Number(event.target.value))} />
-      <button className="primary" onClick={() => onSubmit({ displayName, age })}>Сохранить</button>
-    </Panel>
+    <Card className="formCard">
+      <SectionIntro title="Создайте профиль" text="Имя увидите только вы и ваш партнёр внутри пары. Возраст нужен для ограничения некоторых тестов." />
+      <InputField label="Имя или ник" value={displayName} onChange={setName} placeholder="Например, Маша" error={displayName && displayName.length < 2 ? "Минимум 2 символа" : ""} />
+      <InputField label="Возраст" type="number" min={18} max={99} value={String(age)} onChange={(value) => setAge(Number(value))} />
+      <Button loading={busy} disabled={!valid} onClick={() => onSubmit({ displayName: displayName.trim(), age })}>
+        Сохранить
+      </Button>
+    </Card>
   );
 }
 
-function PairForm({ invite, pair, members, onSubmit }: { invite: string; pair?: Pair | null; members: Member[]; onSubmit: (data: { name?: string; mode?: "join"; inviteCode?: string }) => void }) {
+function PairScreen({
+  pair,
+  members,
+  invite,
+  busy,
+  onSubmit,
+}: {
+  pair?: Pair | null;
+  members: Member[];
+  invite: string;
+  busy: boolean;
+  onSubmit: (data: { name?: string; mode?: "join"; inviteCode?: string }) => void;
+}) {
   const [name, setName] = useState("");
   const [code, setCode] = useState(invite);
-  const share = pair ? `${location.origin}/?invite=${pair.inviteCode}` : "";
+  const share = pair && typeof location !== "undefined" ? `${location.origin}/?invite=${pair.inviteCode}` : "";
+
+  if (pair) {
+    return (
+      <div className="screenStack inviteScreen">
+        <DecorativeArt kind="invite" />
+        <SectionIntro title="Отправьте ссылку или код приглашения своему партнёру" text="Партнёр должен вступить в пару, чтобы тест стал доступен." />
+        <div className="inviteCode" aria-label={`Код приглашения ${pair.inviteCode}`}>
+          <span>{pair.inviteCode}</span>
+          <IconButton label="Скопировать код" onClick={() => navigator.clipboard.writeText(pair.inviteCode)}>
+            <Copy size={18} />
+          </IconButton>
+        </div>
+        <Button asLink href={`https://t.me/${botUsername}?start=${pair.inviteCode}`} icon={<Send size={18} />}>
+          Отправить ссылку
+        </Button>
+        <div className="shareRow" aria-label="Способы поделиться">
+          <ShareButton label="Telegram" icon={<Send size={20} />} href={`https://t.me/${botUsername}?start=${pair.inviteCode}`} />
+          <ShareButton label="WhatsApp" icon={<MessageCircle size={20} />} href={`https://wa.me/?text=${encodeURIComponent(share)}`} />
+          <ShareButton label="Ещё" icon={<Copy size={20} />} onClick={() => share && navigator.clipboard.writeText(share)} />
+        </div>
+        <Notice tone={members.length < 2 ? "purple" : "success"} icon={<Shield size={18} />}>
+          {members.length < 2 ? "Партнёр должен пройти по вашей ссылке, чтобы результат был точным." : "Пара создана. Функционал доступен."}
+        </Notice>
+      </div>
+    );
+  }
+
   return (
-    <Panel title={pair ? "Пригласите партнера" : "Создайте пару"}>
-      {pair ? (
-        <>
-          <div className="inviteBox"><span>{pair.inviteCode}</span><button onClick={() => navigator.clipboard.writeText(pair.inviteCode)}><Copy size={18} /></button></div>
-          <a className="primary linkButton" href={`https://t.me/${botUsername}?start=${pair.inviteCode}`}><Send size={18} /> Отправить через Telegram</a>
-          <small>{members.length < 2 ? "Партнер должен вступить по ссылке или коду, чтобы тест стал доступен." : "Пара создана. Функционал доступен."}</small>
-          {share && <button className="secondary" onClick={() => navigator.clipboard.writeText(share)}>Скопировать ссылку</button>}
-        </>
-      ) : (
-        <>
-          <input placeholder="Название пары" value={name} onChange={(event) => setName(event.target.value)} />
-          <button className="primary" onClick={() => onSubmit({ name })}>Создать пару</button>
-          <div className="divider">или</div>
-          <input placeholder="Инвайт код" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} />
-          <button className="secondary" onClick={() => onSubmit({ mode: "join", inviteCode: code })}>Вступить по коду</button>
-        </>
-      )}
-    </Panel>
+    <Card className="formCard">
+      <SectionIntro title="Создайте пару" text="Можно создать новую пару или вступить в существующую по invite-коду." />
+      <InputField label="Название пары" value={name} onChange={setName} placeholder="Например, Команда Луна" />
+      <Button loading={busy} disabled={name.trim().length < 2} onClick={() => onSubmit({ name: name.trim() })}>
+        Создать пару
+      </Button>
+      <Divider>или</Divider>
+      <InputField label="Инвайт-код" value={code} onChange={(value) => setCode(value.toUpperCase())} placeholder="SM7K92" maxLength={6} />
+      <Button variant="secondary" loading={busy} disabled={code.length < 6} onClick={() => onSubmit({ mode: "join", inviteCode: code })}>
+        Вступить по коду
+      </Button>
+    </Card>
   );
 }
 
-function QuestionView({ index, total, onAnswer, disabled }: { index: number; total: number; onAnswer: (value: unknown) => void; disabled: boolean }) {
+function QuestionScreen({ index, total, onAnswer, disabled }: { index: number; total: number; onAnswer: (value: unknown) => void; disabled: boolean }) {
   const question = questions[index];
   const [value, setValue] = useState<unknown>(question.type === "multi" ? [] : question.type === "text" ? "" : 8);
+  const multiValue = Array.isArray(value) ? value : [];
+
   return (
-    <Panel title={`${index + 1}/${total}`}>
-      <small>{categories[question.category]}</small>
-      <h3>{question.title}</h3>
-      {question.type === "scale" && <Scale value={Number(value)} onChange={setValue} />}
-      {question.type === "slider" && <input type="range" min={1} max={10} value={Number(value)} onChange={(e) => setValue(Number(e.target.value))} />}
-      {question.type === "text" && <textarea placeholder="Напишите здесь..." value={String(value)} onChange={(e) => setValue(e.target.value)} />}
-      {(question.type === "single" || question.type === "multi") && (
-        <div className="chips">
-          {question.options?.map((option) => {
-            const selected = question.type === "multi" ? (value as string[]).includes(option) : value === option;
-            return <button className={selected ? "selected" : ""} key={option} onClick={() => question.type === "multi" ? setValue(selected ? (value as string[]).filter((x) => x !== option) : [...(value as string[]), option]) : setValue(option)}>{option}</button>;
-          })}
-        </div>
+    <Card className="questionCard">
+      <div className="questionMeta">
+        <Badge tone="purple">{question.type === "scale" ? "Шкала 1-10" : categories[question.category]}</Badge>
+        <span>{index + 1}/{total}</span>
+      </div>
+      <ProgressBar value={Math.round(((index + 1) / total) * 100)} />
+      <h2>{question.title}</h2>
+
+      {question.type === "scale" && <SegmentedControl value={Number(value)} onChange={setValue} count={10} />}
+      {question.type === "slider" && <RangeSlider value={Number(value)} onChange={setValue} left={question.leftLabel || "Он"} right={question.rightLabel || "Она"} />}
+      {question.type === "text" && <TextArea label="Ответ" value={String(value)} onChange={setValue} placeholder="Напишите здесь..." maxLength={500} />}
+      {question.type === "single" && <RadioGroup options={question.options || []} value={String(value)} onChange={setValue} />}
+      {question.type === "multi" && (
+        <CheckboxGrid options={question.options || []} value={multiValue} onChange={setValue} />
       )}
-      <button className="primary" disabled={disabled} onClick={() => onAnswer(value)}>Ответить</button>
-    </Panel>
+
+      <Button disabled={disabled} loading={disabled} onClick={() => onAnswer(value)}>
+        Ответить
+      </Button>
+    </Card>
   );
 }
 
-function Scale({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return <div className="scale">{Array.from({ length: 10 }, (_, i) => <button className={value === i + 1 ? "selected" : ""} key={i} onClick={() => onChange(i + 1)}>{i + 1}</button>)}</div>;
-}
-
-function ResultView({
+function ResultScreen({
   report,
   mineReady,
   partnerReady,
@@ -316,22 +462,337 @@ function ResultView({
 }: {
   report?: Report | null;
   mineReady: boolean;
-  partnerReady: boolean | null;
+  partnerReady: boolean;
   unlocked?: boolean;
   sessionId?: string;
   onUnlock: (sessionId: string) => void;
 }) {
   if (!report) {
-    return <Panel title="Ожидаем завершения"><p>{mineReady ? "Ваши ответы сохранены. Осталось дождаться партнера." : "Пройдите тест, чтобы открыть результат."}</p><p>{partnerReady ? "Партнер уже готов." : "Ответы партнера скрыты до завершения теста."}</p></Panel>;
+    return (
+      <Card className="emptyState">
+        <DecorativeArt kind="waiting" />
+        <SectionIntro
+          title="Ожидаем завершения"
+          text={mineReady ? "Ваши ответы сохранены. Осталось дождаться партнёра." : "Пройдите тест, чтобы открыть результат."}
+        />
+        <Notice tone={partnerReady ? "success" : "warning"} icon={<Shield size={18} />}>
+          {partnerReady ? "Партнёр уже готов." : "Ответы партнёра скрыты до завершения теста."}
+        </Notice>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="screenStack resultScreen">
+      <Card className="scoreCard">
+        <h2>Ваша совместимость</h2>
+        <div className="heartScore" aria-label={`Совместимость ${report.compatibility}%`}>
+          <Heart size={138} />
+          <strong>{report.compatibility}%</strong>
+        </div>
+        <h3>{report.title}</h3>
+        <DecorativeArt kind="result-avatars" />
+      </Card>
+
+      <Card>
+        <h2 className="cardTitle">Ключевые показатели</h2>
+        <div className="indicatorList">
+          {report.indicators?.map((item) => (
+            <div className="indicator" key={item.key}>
+              <span>{item.label}</span>
+              <b>{item.value}%</b>
+              <ProgressBar value={item.value} tone={item.key === "conflict" ? "coral" : "purple"} />
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="summaryCard">
+        <h2>Главный вывод</h2>
+        <p>{report.freeSummary}</p>
+      </Card>
+
+      {unlocked ? (
+        <Card className="fullReport">
+          <h2>Полный отчёт</h2>
+          <p>{report.fullSummary}</p>
+          <div className="recommendationList">
+            {report.recommendations?.map((item) => (
+              <Notice tone="purple" icon={<Check size={16} />} key={item}>
+                {item}
+              </Notice>
+            ))}
+          </div>
+        </Card>
+      ) : (
+        <Card className="paywallCard">
+          <h2>Откройте полный отчёт</h2>
+          <ul>
+            {["Полный анализ всех категорий", "Все совпадения и расхождения", "Что партнёр думает о вас", "Персональные рекомендации"].map((item) => (
+              <li key={item}><Check size={16} /> {item}</li>
+            ))}
+          </ul>
+          <Button variant="secondary" disabled={!sessionId} onClick={() => sessionId && onUnlock(sessionId)} icon={<Lock size={18} />}>
+            {reportPriceRub} ₽
+          </Button>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function Button({
+  children,
+  variant = "primary",
+  disabled,
+  loading,
+  icon,
+  onClick,
+  asLink,
+  href,
+}: {
+  children: React.ReactNode;
+  variant?: ButtonVariant;
+  disabled?: boolean;
+  loading?: boolean;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  asLink?: boolean;
+  href?: string;
+}) {
+  const className = `uiAction uiAction-${variant}${loading ? " isLoading" : ""}`;
+  const content = (
+    <>
+      {loading ? <span className="spinner" aria-hidden="true" /> : icon}
+      <span>{children}</span>
+    </>
+  );
+
+  if (asLink && href) {
+    return (
+      <a className={className} href={href} target="_blank" rel="noreferrer">
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button className={className} disabled={disabled || loading} onClick={onClick}>
+      {content}
+    </button>
+  );
+}
+
+function IconButton({ label, children, onClick }: { label: string; children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button className="iconAction" aria-label={label} title={label} onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <section className={`surfaceCard ${className}`}>{children}</section>;
+}
+
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  error,
+  type = "text",
+  min,
+  max,
+  maxLength,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  error?: string;
+  type?: string;
+  min?: number;
+  max?: number;
+  maxLength?: number;
+}) {
+  const id = `field-${label.replace(/\s+/g, "-").toLowerCase()}`;
+  return (
+    <label className="field" htmlFor={id}>
+      <span>{label}</span>
+      <input id={id} type={type} value={value} min={min} max={max} maxLength={maxLength} placeholder={placeholder} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)} />
+      {error && <em>{error}</em>}
+    </label>
+  );
+}
+
+function TextArea({ label, value, onChange, placeholder, maxLength }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; maxLength?: number }) {
+  const id = `textarea-${label}`;
+  return (
+    <label className="field" htmlFor={id}>
+      <span>{label}</span>
+      <textarea id={id} value={value} placeholder={placeholder} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} />
+      {maxLength && <small>{value.length}/{maxLength}</small>}
+    </label>
+  );
+}
+
+function SegmentedControl({ value, onChange, count }: { value: number; onChange: (value: number) => void; count: number }) {
+  return (
+    <div className="segmented" role="radiogroup" aria-label="Шкала ответа">
+      {Array.from({ length: count }, (_, index) => {
+        const next = index + 1;
+        return (
+          <button key={next} className={value === next ? "isSelected" : ""} role="radio" aria-checked={value === next} onClick={() => onChange(next)}>
+            {next}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RadioGroup({ options, value, onChange }: { options: string[]; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="chipGrid" role="radiogroup">
+      {options.map((option) => (
+        <button className={value === option ? "isSelected" : ""} role="radio" aria-checked={value === option} key={option} onClick={() => onChange(option)}>
+          {option}
+          {value === option && <Check size={16} />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CheckboxGrid({ options, value, onChange }: { options: string[]; value: string[]; onChange: (value: string[]) => void }) {
+  return (
+    <div className="optionTiles">
+      {options.map((option) => {
+        const selected = value.includes(option);
+        return (
+          <button key={option} className={selected ? "isSelected" : ""} role="checkbox" aria-checked={selected} onClick={() => onChange(selected ? value.filter((item) => item !== option) : [...value, option])}>
+            <Gift size={20} />
+            <span>{option}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RangeSlider({ value, onChange, left, right }: { value: number; onChange: (value: number) => void; left: string; right: string }) {
+  return (
+    <div className="rangeControl">
+      <input aria-label="Ползунок ответа" type="range" min={1} max={10} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <div>
+        <span>{left}</span>
+        <span>Одинаково</span>
+        <span>{right}</span>
+      </div>
+    </div>
+  );
+}
+
+function ProgressBar({ value, tone = "purple" }: { value: number; tone?: "purple" | "coral" }) {
+  return (
+    <span className={`progressBar progress-${tone}`} aria-label={`Прогресс ${value}%`}>
+      <i style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    </span>
+  );
+}
+
+function Badge({ children, tone = "pink" }: { children: React.ReactNode; tone?: "pink" | "purple" | "coral" }) {
+  return <span className={`badge badge-${tone}`}>{children}</span>;
+}
+
+function Notice({ children, icon, tone }: { children: React.ReactNode; icon: React.ReactNode; tone: "purple" | "success" | "warning" | "danger" }) {
+  return (
+    <div className={`notice notice-${tone}`}>
+      {icon}
+      <span>{children}</span>
+    </div>
+  );
+}
+
+function Toast({ children, tone }: { children: React.ReactNode; tone: "success" | "warning" | "danger" }) {
+  return (
+    <div className={`toast toast-${tone}`} role="status">
+      {tone === "success" ? <Check size={16} /> : <Shield size={16} />}
+      <span>{children}</span>
+    </div>
+  );
+}
+
+function MenuItem({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick}>
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function ShareButton({ label, icon, href, onClick }: { label: string; icon: React.ReactNode; href?: string; onClick?: () => void }) {
+  const content = (
+    <>
+      <span>{icon}</span>
+      <small>{label}</small>
+    </>
+  );
+  if (href) {
+    return (
+      <a className="shareButton" href={href} target="_blank" rel="noreferrer">
+        {content}
+      </a>
+    );
   }
   return (
-    <section className="result">
-      <h2>Ваш результат</h2>
-      <div className="score"><Heart size={88} /><strong>{report.compatibility}%</strong></div>
-      <h3>{report.title}</h3>
-      <p>{report.freeSummary}</p>
-      <div className="indicators">{report.indicators?.map((item) => <p key={item.key}><span>{item.label}</span><b>{item.value}%</b><i style={{ width: `${item.value}%` }} /></p>)}</div>
-      {unlocked ? <div className="full"><h3>Полный отчет</h3><p>{report.fullSummary}</p>{report.recommendations?.map((item) => <small key={item}>{item}</small>)}</div> : <button className="primary" disabled={!sessionId} onClick={() => sessionId && onUnlock(sessionId)}>Смотреть полный отчет {reportPriceRub} ₽ <Lock size={16} /></button>}
-    </section>
+    <button className="shareButton" onClick={onClick}>
+      {content}
+    </button>
+  );
+}
+
+function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return (
+    <div className="featureItem">
+      <span>{icon}</span>
+      <div>
+        <strong>{title}</strong>
+        <small>{text}</small>
+      </div>
+    </div>
+  );
+}
+
+function SectionIntro({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="sectionIntro">
+      <h2>{title}</h2>
+      <p>{text}</p>
+    </div>
+  );
+}
+
+function Divider({ children }: { children: React.ReactNode }) {
+  return <div className="divider"><span>{children}</span></div>;
+}
+
+function DecorativeArt({ kind }: { kind: string }) {
+  const map: Record<string, string> = {
+    couple: "💑",
+    "couple-small": "💞",
+    date: "💜",
+    hot: "🔥",
+    telegram: "💌",
+    invite: "💜",
+    waiting: "⏳",
+    "result-avatars": "💕",
+  };
+  return (
+    <div className={`art art-${kind}`} aria-hidden="true">
+      <span>{map[kind] || "💕"}</span>
+    </div>
   );
 }
