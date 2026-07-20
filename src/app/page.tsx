@@ -302,7 +302,7 @@ function EnvironmentLoadingScreen() {
           <span className="brandMark browserOnlyIcon" aria-hidden="true">
             <Heart size={24} />
           </span>
-          <SectionIntro title="55 Вопросов" text="Проверяем запуск внутри Telegram..." />
+          <SectionIntro title="55 Вопросов" text="Запускаем приложение..." />
         </Card>
       </section>
     </main>
@@ -318,7 +318,7 @@ function BrowserOnlyScreen() {
             <Heart size={24} />
           </span>
           <SectionIntro
-            title="Откройте приложение в Telegram"
+            title="55 Вопросов"
             text="Извините, в данный момент сервис «55 Вопросов» не работает через обычный браузер. Пожалуйста, откройте приложение в Telegram."
           />
           <Button asLink href={`https://t.me/${botUsername}`} icon={<Send size={18} />}>
