@@ -4,6 +4,7 @@ import { botUsername } from "./env";
 import { upsertTelegramUser } from "./domain";
 
 const tokenPrefix = "login_";
+const legacyTokenPrefix = "auth_";
 const rawTokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
 function hashToken(token: string) {
@@ -23,14 +24,15 @@ export async function createLoginToken() {
   return {
     token,
     expiresAt,
-    botUrl: `tg://resolve?domain=${botUsername}&start=${tokenPrefix}${token}`,
+    botUrl: `https://t.me/${botUsername}?start=${tokenPrefix}${token}`,
+    tgUrl: `tg://resolve?domain=${botUsername}&start=${tokenPrefix}${token}`,
   };
 }
 
 export function parseAuthPayload(text: string) {
-  const payload = text.trim().split(/\s+/).find((part) => part.startsWith(tokenPrefix));
+  const payload = text.trim().split(/\s+/).find((part) => part.startsWith(tokenPrefix) || part.startsWith(legacyTokenPrefix));
   if (!payload) return null;
-  const token = payload.slice(tokenPrefix.length);
+  const token = payload.startsWith(tokenPrefix) ? payload.slice(tokenPrefix.length) : payload.slice(legacyTokenPrefix.length);
   return rawTokenPattern.test(token) ? token : null;
 }
 

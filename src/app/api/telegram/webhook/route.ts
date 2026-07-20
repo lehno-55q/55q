@@ -55,6 +55,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (!payload) {
+    await sendTelegramMessage(
+      String(chatId),
+      "<b>👋 Я на связи</b>\nЧтобы войти на сайт, нажмите кнопку «Продолжить через Telegram» в браузере ещё раз. В сообщении /start должен быть одноразовый код.",
+    );
+    return NextResponse.json({ ok: true });
+  }
+
   const link = payload ? inviteLink(payload) : botStartLink();
   await sendTelegramMessage(String(chatId), `Добро пожаловать в 55Q. Откройте приложение: ${link}`);
   return NextResponse.json({ ok: true });

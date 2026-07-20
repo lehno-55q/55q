@@ -161,7 +161,10 @@ export default function HomePage() {
     setToast({ tone: "warning", text: "Ждём подтверждение входа в Telegram" });
     try {
       const login = await api("/api/auth/start", {});
-      window.location.href = login.botUrl;
+      const opened = window.open(login.botUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        window.location.href = login.tgUrl || login.botUrl;
+      }
 
       for (let attempt = 0; attempt < 60; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 2000));
