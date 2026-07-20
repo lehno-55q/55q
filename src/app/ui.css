@@ -15,11 +15,9 @@
   border-radius: 26px;
   box-shadow: 0 20px 80px rgb(73 42 98 / 12%);
   padding: 22px;
-  padding-bottom: 92px;
 }
 
 .topbar,
-.bottomNav,
 .brand,
 .benefits p,
 .primary,
@@ -29,10 +27,54 @@
   align-items: center;
 }
 
-.topbar { justify-content: space-between; margin-bottom: 28px; }
+.topbar { justify-content: space-between; margin-bottom: 28px; position: relative; }
 .brand { gap: 8px; font-weight: 900; color: #e91e74; }
 .brand svg { fill: none; }
-.iconButton { border: 0; background: #fff; padding: 8px; border-radius: 8px; }
+.iconButton {
+  border: 1px solid #f0e8f4;
+  background: #fff;
+  padding: 8px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #261a31;
+  box-shadow: 0 8px 22px rgb(63 34 79 / 8%);
+}
+
+.topMenu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 10;
+  width: min(240px, calc(100vw - 44px));
+  background: rgb(255 255 255 / 96%);
+  border: 1px solid #f0e8f4;
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgb(63 34 79 / 16%);
+  padding: 8px;
+  backdrop-filter: blur(12px);
+  display: grid;
+  gap: 4px;
+}
+
+.topMenu button {
+  border: 0;
+  background: transparent;
+  color: #2b2036;
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.topMenu button:hover {
+  background: #f8f2ff;
+  color: #e91e74;
+}
 
 h1 { font-size: 32px; line-height: 1.12; margin: 0 0 14px; letter-spacing: 0; }
 h1 span, .testCard b { color: #ef247d; }
@@ -179,32 +221,6 @@ input[type="range"] { accent-color: #943fe1; }
 .indicators i { position: absolute; left: 0; bottom: 0; height: 5px; background: #7f3bd1; border-radius: 99px; z-index: 1; }
 .full { display: grid; gap: 10px; text-align: left; background: #f8f2ff; border-radius: 8px; padding: 16px; }
 .full small { display: block; color: #34263f; }
-
-.bottomNav {
-  position: fixed;
-  left: 50%;
-  bottom: 20px;
-  transform: translateX(-50%);
-  width: min(390px, calc(100% - 48px));
-  background: rgb(255 255 255 / 92%);
-  border: 1px solid #f0e8f4;
-  backdrop-filter: blur(12px);
-  border-radius: 8px;
-  box-shadow: 0 16px 40px rgb(63 34 79 / 15%);
-  padding: 8px;
-  justify-content: space-between;
-}
-
-.bottomNav button {
-  border: 0;
-  background: transparent;
-  color: #6b6174;
-  display: grid;
-  place-items: center;
-  gap: 4px;
-  font-size: 12px;
-  min-width: 86px;
-}
 
 @media (max-width: 520px) {
   .shell { padding: 0; }

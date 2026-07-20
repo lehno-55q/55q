@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Heart, Lock, Menu, Send, Shield, Sparkles, UserRound } from "lucide-react";
+import { Copy, Heart, Lock, Menu, Send, Shield, Sparkles, UserRound, X } from "lucide-react";
 import { botUsername, reportPriceRub } from "@/lib/env";
 import { questions, tests, categories } from "@/lib/tests";
 import "./ui.css";
@@ -46,6 +46,8 @@ export default function Home() {
   const [answers, setAnswers] = useState<Record<number, unknown>>({});
   const [current, setCurrent] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [loginStatus, setLoginStatus] = useState("");
   const inviteFromUrl = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("invite") : "";
 
   const user = state?.user;
@@ -85,8 +87,28 @@ export default function Home() {
     const tg = (window as Window & { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp;
     if (tg?.initData) {
       await run(() => api("/api/auth/telegram", { initData: tg.initData }));
+      setScreen("home");
     } else {
-      await run(() => api("/api/auth/dev", {}));
+      setBusy(true);
+      setLoginStatus("Откройте Telegram и нажмите Start у бота.");
+      try {
+        const login = await api("/api/auth/start", {});
+        window.open(login.botUrl, "_blank", "noopener,noreferrer");
+
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 2000));
+          const status = await api("/api/auth/status", { token: login.token });
+          if (status.ok) {
+            setLoginStatus("Вход подтвержден.");
+            await refresh();
+            setScreen("home");
+            return;
+          }
+        }
+        setLoginStatus("Время ожидания истекло. Попробуйте войти еще раз.");
+      } finally {
+        setBusy(false);
+      }
     }
   }
 
@@ -110,12 +132,28 @@ export default function Home() {
     }
   }
 
+  function navigate(nextScreen: string) {
+    setScreen(nextScreen);
+    setMenuOpen(false);
+  }
+
   return (
     <main className="shell">
       <section className="phone">
         <header className="topbar">
           <div className="brand"><Heart size={22} /> 55Q</div>
-          <button className="iconButton" aria-label="menu"><Menu size={21} /></button>
+          <button className="iconButton" aria-label="menu" onClick={() => setMenuOpen((value) => !value)}>
+            {menuOpen ? <X size={21} /> : <Menu size={21} />}
+          </button>
+          {menuOpen && (
+            <nav className="topMenu">
+              <button onClick={() => navigate("home")}><Heart size={18} /> Главная</button>
+              <button onClick={() => navigate("tests")}><Sparkles size={18} /> Тесты</button>
+              <button onClick={() => navigate(user ? "profile" : "auth")}><UserRound size={18} /> Профиль</button>
+              {pair && <button onClick={() => navigate("pair")}><Send size={18} /> Приглашение</button>}
+              {session && <button onClick={() => navigate("result")}><Lock size={18} /> Результат</button>}
+            </nav>
+          )}
         </header>
 
         {screen === "home" && (
@@ -142,7 +180,7 @@ export default function Home() {
           <Panel title="Войдите через Telegram">
             <p>Так мы привяжем ответы к вашему профилю и отправим уведомление, когда пара будет готова.</p>
             <button className="primary" onClick={auth} disabled={busy}><Send size={18} /> Продолжить через Telegram</button>
-            <small>Для локальной разработки включен dev-вход. В Telegram Mini App кнопка использует initData.</small>
+            <small>{loginStatus || "В Mini App вход пройдет автоматически. В браузере откроется бот для подтверждения."}</small>
           </Panel>
         )}
 
@@ -180,11 +218,6 @@ export default function Home() {
           />
         )}
 
-        <nav className="bottomNav">
-          <button onClick={() => setScreen("home")}><Heart size={18} /> Главная</button>
-          <button onClick={() => setScreen("tests")}><Sparkles size={18} /> Тесты</button>
-          <button onClick={() => setScreen(user ? "profile" : "auth")}><UserRound size={18} /> Профиль</button>
-        </nav>
       </section>
     </main>
   );

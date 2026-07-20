@@ -22,7 +22,6 @@ TELEGRAM_BOT_USERNAME="ai_55q_bot"
 DEEPSEEK_API_KEY="..."
 DEEPSEEK_MODEL="deepseek-chat"
 REPORT_PRICE_RUB="149"
-DEV_AUTH_ENABLED="false"
 ```
 
 `DEEPSEEK_API_KEY` is optional for first deploy. Without it the app returns a deterministic demo report.
@@ -52,6 +51,12 @@ curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=$NEXT_PUBLI
 ```
 
 Bot: `@ai_55q_bot`.
+
+## Auth flow
+
+- Telegram Mini App sends `Telegram.WebApp.initData` to `/api/auth/telegram`; the server validates the signature and creates an HttpOnly session cookie.
+- A normal browser calls `/api/auth/start`, opens `https://t.me/ai_55q_bot?start=login_<token>`, waits on `/api/auth/status`, and receives the same HttpOnly session cookie after the bot webhook confirms the token.
+- The raw browser login token is one-time and stored in the database only as a SHA-256 hash.
 
 ## Current MVP
 

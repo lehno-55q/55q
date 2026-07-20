@@ -1,6 +1,4 @@
 import { cookies } from "next/headers";
-import { devAuthEnabled } from "./env";
-import { upsertTelegramUser } from "./domain";
 
 const cookieName = "55q_user";
 
@@ -24,15 +22,4 @@ export async function requireUserId() {
   const userId = await currentUserId();
   if (!userId) throw new Error("Unauthorized");
   return userId;
-}
-
-export async function ensureDevUser() {
-  if (!devAuthEnabled) throw new Error("Dev auth disabled");
-  const user = await upsertTelegramUser({
-    telegramId: `dev-${Date.now()}`,
-    telegramName: "dev_user",
-    firstName: "Demo",
-  });
-  await setUserSession(user.id);
-  return user;
 }
