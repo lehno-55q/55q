@@ -319,14 +319,11 @@ function BrowserOnlyScreen() {
           </span>
           <SectionIntro
             title="Откройте приложение в Telegram"
-            text="Извините, в данный момент 55 Вопросов не работает через обычный браузер. Зато приложение отлично работает внутри Telegram Mini App."
+            text="Извините, в данный момент сервис «55 Вопросов» не работает через обычный браузер. Пожалуйста, откройте приложение в Telegram."
           />
           <Button asLink href={`https://t.me/${botUsername}`} icon={<Send size={18} />}>
-            Перейти к боту @{botUsername}
+            Перейти к боту
           </Button>
-          <Notice tone="purple" icon={<Shield size={18} />}>
-            В Telegram вход выполняется автоматически и безопасно через Mini App.
-          </Notice>
         </Card>
       </section>
     </main>
