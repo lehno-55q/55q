@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
   if (webhookSecret) {
     const received = request.headers.get("x-telegram-bot-api-secret-token") || "";
     if (!timingSafeEqualText(received, webhookSecret)) {
+      console.warn("[telegram_auth] webhook_secret_mismatch", { hasReceivedSecret: Boolean(received) });
       return NextResponse.json({ ok: false }, { status: 401 });
     }
   }
@@ -34,13 +35,19 @@ export async function POST(request: NextRequest) {
   const chatId = message?.chat?.id;
   const text = message?.text || "";
   const payload = extractStartPayload(text, process.env.TELEGRAM_BOT_USERNAME || "ai_55q_bot");
+  console.info("[telegram_auth] webhook_received", {
+    updateId: update.update_id,
+    hasChatId: Boolean(chatId),
+    command: text.split(/\s+/)[0] || "",
+    hasPayload: Boolean(payload),
+  });
 
   if (!chatId || payload === null) return NextResponse.json({ ok: true });
 
   const authToken = parseAuthPayload(payload);
   if (authToken) {
     const confirmed = await confirmLoginToken({
-      startPayload: `login_${authToken}`,
+      startPayload: `auth_${authToken}`,
       telegramId: String(message.from?.id || chatId),
       telegramName: message.from?.username,
       firstName: message.from?.first_name,

@@ -160,10 +160,9 @@ export default function HomePage() {
     setLoginStatus("Откройте Telegram, нажмите Start у бота и вернитесь в браузер.");
     setToast({ tone: "warning", text: "Ждём подтверждение входа в Telegram" });
     try {
-      const login = await api("/api/auth/start", {});
-      const opened = window.open(login.botUrl, "_blank", "noopener,noreferrer");
+      const opened = window.open("/api/auth/telegram-browser/start", "_blank", "noopener,noreferrer");
       if (!opened) {
-        window.location.href = login.tgUrl || login.botUrl;
+        window.location.href = "/api/auth/telegram-browser/start";
       }
 
       for (let attempt = 0; attempt < 60; attempt += 1) {

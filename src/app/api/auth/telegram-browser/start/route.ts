@@ -5,5 +5,6 @@ import { setLoginRequestCookie } from "@/lib/session";
 export async function GET() {
   const login = await createLoginToken();
   await setLoginRequestCookie(login.token);
+  console.info("[telegram_auth] telegram_redirect", { url: login.botUrl.replace(login.token, "***") });
   return NextResponse.redirect(login.botUrl, 302);
 }

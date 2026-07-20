@@ -66,11 +66,14 @@ export function loginWidgetUrl() {
 export async function sendTelegramMessage(chatId: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
   });
+  if (!response.ok) {
+    console.warn("[telegram_auth] send_message_failed", { status: response.status, body: await response.text() });
+  }
 }
 
 export function inviteLink(code: string) {
