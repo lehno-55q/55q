@@ -478,12 +478,14 @@
   margin-inline: auto;
 }
 
-.field {
+.field,
+.fieldGroup {
   display: grid;
   gap: var(--space-2);
 }
 
-.field > span {
+.field > span,
+.fieldGroup > span {
   font-size: var(--text-sm);
   font-weight: 850;
 }

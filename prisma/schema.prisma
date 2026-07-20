@@ -24,6 +24,7 @@ model User {
   telegramName   String?
   firstName      String?
   displayName    String?
+  gender         String?
   age            Int?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt

@@ -36,13 +36,18 @@ type Report = {
   recommendations?: string[];
 };
 type AppState = {
-  user: { id: string; displayName?: string | null; telegramName?: string | null; firstName?: string | null; age?: number | null } | null;
+  user: { id: string; displayName?: string | null; telegramName?: string | null; firstName?: string | null; gender?: string | null; age?: number | null } | null;
   pair?: Pair | null;
   session?: Session | null;
 } | null;
 
 type Screen = "home" | "tests" | "profile" | "pair" | "test" | "result";
 type ButtonVariant = "primary" | "secondary" | "danger" | "outline" | "ghost";
+
+function formatInviteCode(code: string) {
+  const clean = code.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 6);
+  return clean.length > 3 ? `${clean.slice(0, 3)} - ${clean.slice(3)}` : clean;
+}
 
 async function api(path: string, body?: unknown) {
   const response = await fetch(path, {
@@ -88,6 +93,22 @@ export default function HomePage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!environmentReady || browserOnly || !state || !user) return;
+    let nextScreen: Screen | null = null;
+    if (!user.displayName || !user.gender || !user.age) {
+      nextScreen = "profile";
+    } else if (!pair || members.length < 2) {
+      nextScreen = "pair";
+    } else if (screen === "profile" || screen === "pair") {
+      nextScreen = "home";
+    }
+    if (nextScreen && nextScreen !== screen) {
+      const id = window.setTimeout(() => setScreen(nextScreen), 0);
+      return () => window.clearTimeout(id);
+    }
+  }, [browserOnly, environmentReady, members.length, pair, screen, state, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,7 +173,7 @@ export default function HomePage() {
       setToast({ tone: "warning", text: "Откройте приложение внутри Telegram, чтобы продолжить" });
       return;
     }
-    if (!user.displayName || !user.age) return setScreen("profile");
+    if (!user.displayName || !user.gender || !user.age) return setScreen("profile");
     if (!pair || members.length < 2) return setScreen("pair");
     const created = await api("/api/session", {});
     setState({ ...state, session: created });
@@ -203,7 +224,7 @@ export default function HomePage() {
             onSubmit={(data) =>
               run(async () => {
                 await api("/api/profile", data);
-                setScreen(inviteFromUrl ? "pair" : "home");
+                setScreen("pair");
               }, "Профиль сохранён")
             }
           />
@@ -353,17 +374,29 @@ function TestsScreen({ onStart }: { onStart: () => void }) {
   );
 }
 
-function ProfileScreen({ busy, onSubmit }: { busy: boolean; onSubmit: (data: { displayName: string; age: number }) => void }) {
+function ProfileScreen({ busy, onSubmit }: { busy: boolean; onSubmit: (data: { displayName: string; gender: string; age: number }) => void }) {
   const [displayName, setName] = useState("");
+  const [gender, setGender] = useState("");
   const [age, setAge] = useState(18);
-  const valid = displayName.trim().length >= 2 && age >= 18;
+  const valid = displayName.trim().length >= 2 && Boolean(gender) && age >= 14 && age <= 99;
 
   return (
     <Card className="formCard">
-      <SectionIntro title="Создайте профиль" text="Имя увидите только вы и ваш партнёр внутри пары. Возраст нужен для ограничения некоторых тестов." />
+      <SectionIntro title="Создайте профиль" text="Эти данные нужны, чтобы точнее адаптировать вопросы и отчёт для вашей пары." />
       <InputField label="Имя или ник" value={displayName} onChange={setName} placeholder="Например, Маша" error={displayName && displayName.length < 2 ? "Минимум 2 символа" : ""} />
-      <InputField label="Возраст" type="number" min={18} max={99} value={String(age)} onChange={(value) => setAge(Number(value))} />
-      <Button loading={busy} disabled={!valid} onClick={() => onSubmit({ displayName: displayName.trim(), age })}>
+      <FieldGroup label="Пол">
+        <RadioGroup
+          options={[
+            { label: "Женский", value: "female" },
+            { label: "Мужской", value: "male" },
+            { label: "Другой", value: "other" },
+          ]}
+          value={gender}
+          onChange={setGender}
+        />
+      </FieldGroup>
+      <InputField label="Возраст" type="number" min={14} max={99} value={String(age)} onChange={(value) => setAge(Number(value))} />
+      <Button loading={busy} disabled={!valid} onClick={() => onSubmit({ displayName: displayName.trim(), gender, age })}>
         Сохранить
       </Button>
     </Card>
@@ -385,29 +418,34 @@ function PairScreen({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState(invite);
+  const [joinOpen, setJoinOpen] = useState(Boolean(invite));
   const share = pair && typeof location !== "undefined" ? `${location.origin}/?invite=${pair.inviteCode}` : "";
 
   if (pair) {
+    const botInvite = `https://t.me/${botUsername}?start=${pair.inviteCode}`;
     return (
       <div className="screenStack inviteScreen">
         <DecorativeArt kind="invite" />
-        <SectionIntro title="Отправьте ссылку или код приглашения своему партнёру" text="Партнёр должен вступить в пару, чтобы тест стал доступен." />
+        <SectionIntro title="Пригласите партнёра" text="Пока второй участник не присоединится, тесты и результаты будут недоступны." />
         <div className="inviteCode" aria-label={`Код приглашения ${pair.inviteCode}`}>
-          <span>{pair.inviteCode}</span>
+          <span>{formatInviteCode(pair.inviteCode)}</span>
           <IconButton label="Скопировать код" onClick={() => navigator.clipboard.writeText(pair.inviteCode)}>
             <Copy size={18} />
           </IconButton>
         </div>
-        <Button asLink href={`https://t.me/${botUsername}?start=${pair.inviteCode}`} icon={<Send size={18} />}>
-          Отправить ссылку
+        <Button icon={<Copy size={18} />} onClick={() => navigator.clipboard.writeText(botInvite)}>
+          Скопировать ссылку
+        </Button>
+        <Button asLink href={botInvite} variant="secondary" icon={<Send size={18} />}>
+          Отправить ссылку в Telegram
         </Button>
         <div className="shareRow" aria-label="Способы поделиться">
-          <ShareButton label="Telegram" icon={<Send size={20} />} href={`https://t.me/${botUsername}?start=${pair.inviteCode}`} />
+          <ShareButton label="Telegram" icon={<Send size={20} />} href={botInvite} />
           <ShareButton label="WhatsApp" icon={<MessageCircle size={20} />} href={`https://wa.me/?text=${encodeURIComponent(share)}`} />
           <ShareButton label="Ещё" icon={<Copy size={20} />} onClick={() => share && navigator.clipboard.writeText(share)} />
         </div>
         <Notice tone={members.length < 2 ? "purple" : "success"} icon={<Shield size={18} />}>
-          {members.length < 2 ? "Партнёр должен пройти по вашей ссылке, чтобы результат был точным." : "Пара создана. Функционал доступен."}
+          {members.length < 2 ? "Ожидаем партнёра. Как только он присоединится, вы оба получите сообщение в боте." : "Пара подтверждена. Функционал доступен."}
         </Notice>
       </div>
     );
@@ -415,16 +453,23 @@ function PairScreen({
 
   return (
     <Card className="formCard">
-      <SectionIntro title="Создайте пару" text="Можно создать новую пару или вступить в существующую по invite-коду." />
+      <SectionIntro title="Создайте пару" text="Создайте новую пару и отправьте партнёру код или ссылку. Если партнёр уже создал пару, присоединитесь по invite-коду." />
       <InputField label="Название пары" value={name} onChange={setName} placeholder="Например, Команда Луна" />
       <Button loading={busy} disabled={name.trim().length < 2} onClick={() => onSubmit({ name: name.trim() })}>
         Создать пару
       </Button>
-      <Divider>или</Divider>
-      <InputField label="Инвайт-код" value={code} onChange={(value) => setCode(value.toUpperCase())} placeholder="SM7K92" maxLength={6} />
-      <Button variant="secondary" loading={busy} disabled={code.length < 6} onClick={() => onSubmit({ mode: "join", inviteCode: code })}>
-        Вступить по коду
+      <Button variant="ghost" onClick={() => setJoinOpen((value) => !value)}>
+        Присоединиться к уже созданной паре
       </Button>
+      {joinOpen && (
+        <>
+          <Divider>или</Divider>
+          <InputField label="Инвайт-код" value={formatInviteCode(code)} onChange={(value) => setCode(value.toUpperCase())} placeholder="AB2 - C1H" maxLength={10} />
+          <Button variant="secondary" loading={busy} disabled={code.replace(/[^A-Z0-9]/gi, "").length < 6} onClick={() => onSubmit({ mode: "join", inviteCode: code })}>
+            Вступить по коду
+          </Button>
+        </>
+      )}
     </Card>
   );
 }
@@ -643,6 +688,15 @@ function TextArea({ label, value, onChange, placeholder, maxLength }: { label: s
   );
 }
 
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="fieldGroup">
+      <span>{label}</span>
+      {children}
+    </div>
+  );
+}
+
 function SegmentedControl({ value, onChange, count }: { value: number; onChange: (value: number) => void; count: number }) {
   return (
     <div className="segmented" role="radiogroup" aria-label="Шкала ответа">
@@ -658,15 +712,26 @@ function SegmentedControl({ value, onChange, count }: { value: number; onChange:
   );
 }
 
-function RadioGroup({ options, value, onChange }: { options: string[]; value: string; onChange: (value: string) => void }) {
+function RadioGroup({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<string | { label: string; value: string }>;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <div className="chipGrid" role="radiogroup">
-      {options.map((option) => (
-        <button className={value === option ? "isSelected" : ""} role="radio" aria-checked={value === option} key={option} onClick={() => onChange(option)}>
-          {option}
-          {value === option && <Check size={16} />}
+      {options.map((option) => {
+        const item = typeof option === "string" ? { label: option, value: option } : option;
+        return (
+        <button className={value === item.value ? "isSelected" : ""} role="radio" aria-checked={value === item.value} key={item.value} onClick={() => onChange(item.value)}>
+          {item.label}
+          {value === item.value && <Check size={16} />}
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }

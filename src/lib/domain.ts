@@ -37,10 +37,10 @@ export async function upsertTelegramUser(input: {
   });
 }
 
-export async function saveProfile(userId: string, displayName: string, age: number) {
+export async function saveProfile(userId: string, displayName: string, gender: string, age: number) {
   return prisma.user.update({
     where: { id: userId },
-    data: { displayName, age },
+    data: { displayName, gender, age },
   });
 }
 
@@ -79,7 +79,7 @@ export async function joinPair(userId: string, rawCode: string) {
   if (pair.members.length >= 2) throw new Error("В этой паре уже два участника");
 
   await prisma.pairMember.create({ data: { pairId: pair.id, userId } });
-  await notifyPair(pair.id, `Партнер присоединился к паре <b>${pair.name}</b>. Функционал доступен.`);
+  await notifyPair(pair.id, `🎉 <b>Поздравляем, пара подтверждена!</b>\nВам доступен весь функционал бота.`);
   return pair;
 }
 

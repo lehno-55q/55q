@@ -5,11 +5,12 @@ import { requireUserId } from "@/lib/session";
 
 const schema = z.object({
   displayName: z.string().min(2).max(40),
-  age: z.coerce.number().int().min(18).max(99),
+  gender: z.enum(["male", "female", "other"]),
+  age: z.coerce.number().int().min(14).max(99),
 });
 
 export async function POST(request: NextRequest) {
   const userId = await requireUserId();
   const body = schema.parse(await request.json());
-  return NextResponse.json(await saveProfile(userId, body.displayName, body.age));
+  return NextResponse.json(await saveProfile(userId, body.displayName, body.gender, body.age));
 }
