@@ -10,6 +10,12 @@ type TelegramAuthPayload = {
   hash?: string;
 };
 
+export type TelegramMiniAppUser = {
+  id: number | string;
+  first_name?: string;
+  username?: string;
+};
+
 export function verifyTelegramLogin(payload: TelegramAuthPayload) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !payload.hash) return false;
@@ -32,8 +38,10 @@ export function verifyMiniAppInitData(initData: string) {
 
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
+  const authDate = Number(params.get("auth_date") || 0);
   params.delete("hash");
   if (!hash) return null;
+  if (!authDate || Date.now() / 1000 - authDate > 60 * 60 * 24) return null;
 
   const checkString = Array.from(params.entries())
     .sort(([a], [b]) => a.localeCompare(b))
@@ -41,10 +49,13 @@ export function verifyMiniAppInitData(initData: string) {
     .join("\n");
   const secret = crypto.createHmac("sha256", "WebAppData").update(token).digest();
   const expected = crypto.createHmac("sha256", secret).update(checkString).digest("hex");
-  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) return null;
+  if (expected.length !== hash.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) return null;
 
   const user = params.get("user");
-  return user ? JSON.parse(user) : null;
+  if (!user) return null;
+  const parsed = JSON.parse(user) as TelegramMiniAppUser;
+  if (!parsed.id) return null;
+  return parsed;
 }
 
 export function loginWidgetUrl() {

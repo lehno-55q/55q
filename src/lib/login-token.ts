@@ -3,7 +3,8 @@ import { prisma } from "./db";
 import { botUsername } from "./env";
 import { upsertTelegramUser } from "./domain";
 
-const tokenPrefix = "login_";
+const tokenPrefix = "auth_";
+const rawTokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -26,15 +27,21 @@ export async function createLoginToken() {
   };
 }
 
+export function parseAuthPayload(text: string) {
+  const payload = text.trim().split(/\s+/).find((part) => part.startsWith(tokenPrefix));
+  if (!payload) return null;
+  const token = payload.slice(tokenPrefix.length);
+  return rawTokenPattern.test(token) ? token : null;
+}
+
 export async function confirmLoginToken(input: {
   startPayload: string;
   telegramId: string;
   telegramName?: string;
   firstName?: string;
 }) {
-  if (!input.startPayload.startsWith(tokenPrefix)) return null;
-
-  const token = input.startPayload.slice(tokenPrefix.length);
+  const token = parseAuthPayload(input.startPayload);
+  if (!token) return null;
   const loginToken = await prisma.loginToken.findUnique({
     where: { tokenHash: hashToken(token) },
   });
@@ -46,10 +53,12 @@ export async function confirmLoginToken(input: {
     firstName: input.firstName,
   });
 
-  await prisma.loginToken.update({
-    where: { id: loginToken.id },
-    data: { userId: user.id, confirmedAt: new Date() },
-  });
+  if (!loginToken.userId) {
+    await prisma.loginToken.update({
+      where: { id: loginToken.id },
+      data: { userId: user.id, confirmedAt: new Date() },
+    });
+  }
 
   return user;
 }
@@ -68,4 +77,21 @@ export async function consumeConfirmedLoginToken(token: string) {
   });
 
   return loginToken.userId;
+}
+
+export async function getLoginTokenStatus(token: string | null) {
+  if (!token) return { status: "idle" as const };
+  if (!rawTokenPattern.test(token)) return { status: "expired" as const };
+
+  const loginToken = await prisma.loginToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+    include: { user: true },
+  });
+  if (!loginToken || loginToken.expiresAt < new Date() || loginToken.consumedAt) {
+    return { status: "expired" as const };
+  }
+  if (loginToken.userId && loginToken.user) {
+    return { status: "confirmed" as const, user: loginToken.user };
+  }
+  return { status: "pending" as const, expiresAt: loginToken.expiresAt };
 }

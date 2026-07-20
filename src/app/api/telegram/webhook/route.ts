@@ -1,31 +1,60 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { confirmLoginToken } from "@/lib/login-token";
+import { confirmLoginToken, parseAuthPayload } from "@/lib/login-token";
 import { botStartLink, inviteLink, sendTelegramMessage } from "@/lib/telegram";
 
+function timingSafeEqualText(a: string, b: string) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function extractStartPayload(text: string, botUsername?: string) {
+  const parts = text.trim().split(/\s+/);
+  const command = parts[0] || "";
+  if (!command.startsWith("/start")) return null;
+  if (command.includes("@") && botUsername) {
+    const target = command.split("@")[1]?.toLowerCase();
+    if (target !== botUsername.toLowerCase()) return null;
+  }
+  return parts.slice(1).join(" ");
+}
+
 export async function POST(request: NextRequest) {
+  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (webhookSecret) {
+    const received = request.headers.get("x-telegram-bot-api-secret-token") || "";
+    if (!timingSafeEqualText(received, webhookSecret)) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+  }
+
   const update = await request.json();
   const message = update.message;
   const chatId = message?.chat?.id;
   const text = message?.text || "";
+  const payload = extractStartPayload(text, process.env.TELEGRAM_BOT_USERNAME || "ai_55q_bot");
 
-  if (chatId && text.startsWith("/start")) {
-    const payload = text.split(" ")[1];
-    const confirmed = payload
-      ? await confirmLoginToken({
-          startPayload: payload,
-          telegramId: String(message.from?.id || chatId),
-          telegramName: message.from?.username,
-          firstName: message.from?.first_name,
-        })
-      : null;
+  if (!chatId || payload === null) return NextResponse.json({ ok: true });
 
-    if (confirmed) {
-      await sendTelegramMessage(String(chatId), "Вход подтвержден. Вернитесь на сайт 55Q.");
-    } else {
-      const link = payload ? inviteLink(payload) : botStartLink();
-      await sendTelegramMessage(String(chatId), `Добро пожаловать в 55Q. Откройте приложение: ${link}`);
-    }
+  const authToken = parseAuthPayload(payload);
+  if (authToken) {
+    const confirmed = await confirmLoginToken({
+      startPayload: `auth_${authToken}`,
+      telegramId: String(message.from?.id || chatId),
+      telegramName: message.from?.username,
+      firstName: message.from?.first_name,
+    });
+    await sendTelegramMessage(
+      String(chatId),
+      confirmed
+        ? "Авторизация подтверждена, вернитесь на сайт."
+        : "Ссылка для входа истекла или уже была использована. Попробуйте войти ещё раз.",
+    );
+    return NextResponse.json({ ok: true });
   }
 
+  const link = payload ? inviteLink(payload) : botStartLink();
+  await sendTelegramMessage(String(chatId), `Добро пожаловать в 55Q. Откройте приложение: ${link}`);
   return NextResponse.json({ ok: true });
 }

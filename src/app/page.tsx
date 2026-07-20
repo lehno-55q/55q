@@ -93,6 +93,45 @@ export default function HomePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (user) return;
+    let cancelled = false;
+    let attempts = 0;
+
+    async function tryMiniAppAuth() {
+      const tg = (window as Window & { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } }).Telegram?.WebApp;
+      tg?.ready?.();
+      tg?.expand?.();
+      if (!tg?.initData) {
+        if (attempts < 20 && !cancelled) {
+          attempts += 1;
+          window.setTimeout(tryMiniAppAuth, 250);
+        }
+        return;
+      }
+
+      setBusy(true);
+      try {
+        await api("/api/auth/telegram", { initData: tg.initData });
+        if (!cancelled) {
+          await refresh();
+          setToast({ tone: "success", text: "Вход через Telegram выполнен" });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setToast({ tone: "danger", text: error instanceof Error ? error.message : "Не удалось войти через Mini App" });
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    }
+
+    tryMiniAppAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   async function run(action: () => Promise<void>, successText?: string) {
     setBusy(true);
     setToast(null);
@@ -117,21 +156,29 @@ export default function HomePage() {
       return;
     }
 
+    const authWindow = window.open("/api/auth/telegram-browser/start", "_blank", "noopener,noreferrer");
     setBusy(true);
     setLoginStatus("Откройте Telegram и нажмите Start у бота.");
     setToast({ tone: "warning", text: "Ждём подтверждение входа в Telegram" });
     try {
-      const login = await api("/api/auth/start", {});
-      window.open(login.botUrl, "_blank", "noopener,noreferrer");
+      if (!authWindow) {
+        window.location.href = "/api/auth/telegram-browser/start";
+        return;
+      }
 
       for (let attempt = 0; attempt < 60; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 2000));
-        const status = await api("/api/auth/status", { token: login.token });
-        if (status.ok) {
+        const status = await api("/api/auth/telegram-browser/status");
+        if (status.status === "confirmed") {
           setLoginStatus("Вход подтвержден.");
           await refresh();
           setScreen("home");
           setToast({ tone: "success", text: "Вход подтвержден" });
+          return;
+        }
+        if (status.status === "expired") {
+          setLoginStatus("Ссылка для входа истекла. Попробуйте ещё раз.");
+          setToast({ tone: "warning", text: "Ссылка для входа истекла" });
           return;
         }
       }

@@ -17,8 +17,11 @@ Copy `.env.example` to `.env` locally or set the same variables in Railway:
 ```bash
 DATABASE_URL="postgresql://..."
 NEXT_PUBLIC_APP_URL="https://your-app.up.railway.app"
+APP_URL="https://your-app.up.railway.app"
+TELEGRAM_WEBAPP_URL="https://your-app.up.railway.app"
 TELEGRAM_BOT_TOKEN="..."
 TELEGRAM_BOT_USERNAME="ai_55q_bot"
+TELEGRAM_WEBHOOK_SECRET="..."
 DEEPSEEK_API_KEY="..."
 DEEPSEEK_MODEL="deepseek-chat"
 REPORT_PRICE_RUB="149"
@@ -47,7 +50,7 @@ npm run deploy:start
 After Railway deploy, set the webhook:
 
 ```bash
-curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook?url=$NEXT_PUBLIC_APP_URL/api/telegram/webhook"
+npm run telegram:setup
 ```
 
 Bot: `@ai_55q_bot`.
@@ -55,7 +58,7 @@ Bot: `@ai_55q_bot`.
 ## Auth flow
 
 - Telegram Mini App sends `Telegram.WebApp.initData` to `/api/auth/telegram`; the server validates the signature and creates an HttpOnly session cookie.
-- A normal browser calls `/api/auth/start`, opens `https://t.me/ai_55q_bot?start=login_<token>`, waits on `/api/auth/status`, and receives the same HttpOnly session cookie after the bot webhook confirms the token.
+- A normal browser opens `/api/auth/telegram-browser/start`, gets redirected to `https://t.me/ai_55q_bot?start=auth_<token>`, waits on `/api/auth/telegram-browser/status`, and receives the same HttpOnly session cookie after the bot webhook confirms the token.
 - The raw browser login token is one-time and stored in the database only as a SHA-256 hash.
 
 ## Current MVP
