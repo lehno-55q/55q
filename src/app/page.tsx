@@ -95,22 +95,6 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!environmentReady || browserOnly || !state || !user) return;
-    let nextScreen: Screen | null = null;
-    if (!user.displayName || !user.gender || !user.age) {
-      if (screen !== "welcome" && screen !== "profile") nextScreen = "welcome";
-    } else if (!pair || members.length < 2) {
-      nextScreen = "pair";
-    } else if (screen === "welcome" || screen === "profile" || screen === "pair") {
-      nextScreen = "home";
-    }
-    if (nextScreen && nextScreen !== screen) {
-      const id = window.setTimeout(() => setScreen(nextScreen), 0);
-      return () => window.clearTimeout(id);
-    }
-  }, [browserOnly, environmentReady, members.length, pair, screen, state, user]);
-
-  useEffect(() => {
     let cancelled = false;
     let attempts = 0;
 
@@ -130,17 +114,21 @@ export default function HomePage() {
       }
 
       setBrowserOnly(false);
-      setEnvironmentReady(true);
-      if (user) return;
+      if (user) {
+        setEnvironmentReady(true);
+        return;
+      }
       setBusy(true);
       try {
         await api("/api/auth/telegram", { initData: tg.initData });
         if (!cancelled) {
           await refresh();
+          setEnvironmentReady(true);
         }
       } catch (error) {
         if (!cancelled) {
           setToast({ tone: "danger", text: error instanceof Error ? error.message : "Не удалось войти через Mini App" });
+          setEnvironmentReady(true);
         }
       } finally {
         if (!cancelled) setBusy(false);
@@ -204,11 +192,22 @@ export default function HomePage() {
     return <BrowserOnlyScreen />;
   }
 
+  const activeScreen: Screen =
+    user && (!user.displayName || !user.gender || !user.age)
+      ? screen === "profile"
+        ? "profile"
+        : "welcome"
+      : user && (!pair || members.length < 2)
+        ? "pair"
+        : screen === "welcome" || screen === "profile" || screen === "pair"
+          ? "home"
+          : screen;
+
   return (
     <main className="appShell">
       <section className="appFrame" aria-label="55 Вопросов application">
         <AppHeader
-          screen={screen}
+          screen={activeScreen}
           userName={userLabel}
           avatarUrl={user?.photoUrl || ""}
           avatarLabel={avatarLabel}
@@ -216,10 +215,10 @@ export default function HomePage() {
 
         {toast && <Toast tone={toast.tone}>{toast.text}</Toast>}
 
-        {screen === "home" && <HomeScreen busy={busy} onStart={startTest} onTests={() => navigate("tests")} />}
-        {screen === "tests" && <TestsScreen onStart={startTest} />}
-        {screen === "welcome" && <WelcomeScreen onContinue={() => navigate("profile")} />}
-        {screen === "profile" && (
+        {activeScreen === "home" && <HomeScreen busy={busy} onStart={startTest} onTests={() => navigate("tests")} />}
+        {activeScreen === "tests" && <TestsScreen onStart={startTest} />}
+        {activeScreen === "welcome" && <WelcomeScreen onContinue={() => navigate("profile")} />}
+        {activeScreen === "profile" && (
           <ProfileScreen
             busy={busy}
             onSubmit={(data) =>
@@ -230,7 +229,7 @@ export default function HomePage() {
             }
           />
         )}
-        {screen === "pair" && (
+        {activeScreen === "pair" && (
           <PairScreen
             pair={pair}
             members={members}
@@ -239,10 +238,10 @@ export default function HomePage() {
             onSubmit={(data) => run(() => api("/api/pair", data), data.mode === "join" ? "Вы вступили в пару" : "Пара создана")}
           />
         )}
-        {screen === "test" && session && (
+        {activeScreen === "test" && session && (
           <QuestionScreen key={current} index={current} total={questions.length} disabled={busy} onAnswer={saveCurrent} />
         )}
-        {screen === "result" && (
+        {activeScreen === "result" && (
           <ResultScreen
             report={report}
             mineReady={mineReady}
@@ -344,7 +343,7 @@ function BrowserOnlyScreen() {
           </span>
           <SectionIntro
             title="55 Вопросов"
-            text="????????, ? ?????? ?????? ?????? ?55 ????????? ?? ???????? ????? ??????? ???????. ??????????, ???????? ?????????? ? Telegram."
+            text="Извините, в данный момент сервис «55 Вопросов» не работает через обычный браузер. Пожалуйста, откройте приложение в Telegram."
           />
           <Button asLink href={`https://t.me/${botUsername}`} icon={<Send size={18} />}>
             Перейти к боту
@@ -397,12 +396,12 @@ function ProfileScreen({ busy, onSubmit }: { busy: boolean; onSubmit: (data: { d
   const [displayName, setName] = useState("");
   const [gender, setGender] = useState("");
   const [age, setAge] = useState(18);
-  const valid = displayName.trim().length >= 2 && Boolean(gender) && age >= 14 && age <= 99;
+  const valid = displayName.trim().length >= 2 && Boolean(gender) && age >= 14 && age <= 80;
 
   return (
     <Card className="formCard">
       <SectionIntro title="Давайте знакомиться" text="Эти данные нужны нам, чтобы точнее адаптировать вопросы и отчёт для вашей пары." />
-      <InputField label="??? ??? ???" value={displayName} onChange={setName} placeholder="????????, ????" error={displayName && displayName.length < 2 ? "??????? 2 ???????" : ""} />
+      <InputField label="Имя или ник" value={displayName} onChange={setName} placeholder="Например, Маша" error={displayName && displayName.length < 2 ? "Минимум 2 символа" : ""} />
       <FieldGroup label="Пол">
         <RadioGroup
           options={[
@@ -481,8 +480,8 @@ function PairScreen({
       </Button>
       {joinOpen && (
         <>
-          <Divider>РёР»Рё</Divider>
-          <InputField label="??????-???" value={formatInviteCode(code)} onChange={(value) => setCode(value.toUpperCase())} placeholder="AB2 - C1H" maxLength={10} />
+          <Divider>или</Divider>
+          <InputField label="Инвайт-код" value={formatInviteCode(code)} onChange={(value) => setCode(value.toUpperCase())} placeholder="AB2 - C1H" maxLength={10} />
           <Button variant="secondary" loading={busy} disabled={code.replace(/[^A-Z0-9]/gi, "").length < 6} onClick={() => onSubmit({ mode: "join", inviteCode: code })}>
             Вступить по коду
           </Button>
@@ -629,10 +628,11 @@ function Button({
   asLink?: boolean;
   href?: string;
 }) {
-  const className = `uiAction uiAction-${variant}${loading ? " isLoading" : ""}`;
+  const showLoading = Boolean(loading && !disabled);
+  const className = `uiAction uiAction-${variant}${showLoading ? " isLoading" : ""}`;
   const content = (
     <>
-      {loading ? <span className="spinner" aria-hidden="true" /> : icon}
+      {showLoading ? <span className="spinner" aria-hidden="true" /> : icon}
       <span>{children}</span>
     </>
   );
@@ -646,7 +646,7 @@ function Button({
   }
 
   return (
-    <button className={className} disabled={disabled || loading} onClick={onClick}>
+    <button className={className} disabled={disabled || showLoading} onClick={onClick}>
       {content}
     </button>
   );
@@ -776,7 +776,7 @@ function RangeSlider({ value, onChange, left, right }: { value: number; onChange
       <input aria-label="Ползунок ответа" type="range" min={1} max={10} value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <div>
         <span>{left}</span>
-        <span>РћРґРёРЅР°РєРѕРІРѕ</span>
+        <span>Одинаково</span>
         <span>{right}</span>
       </div>
     </div>
@@ -790,10 +790,10 @@ function AgeSlider({ value, onChange }: { value: number; onChange: (value: numbe
         <span>Возраст</span>
         <strong>{value}</strong>
       </div>
-      <input aria-label="Возраст" type="range" min={14} max={99} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <input aria-label="Возраст" type="range" min={14} max={80} value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <div>
         <span>14</span>
-        <span>99</span>
+        <span>80</span>
       </div>
     </div>
   );

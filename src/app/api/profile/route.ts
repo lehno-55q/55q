@@ -6,7 +6,7 @@ import { requireUserId } from "@/lib/session";
 const schema = z.object({
   displayName: z.string().min(2).max(40),
   gender: z.enum(["male", "female"]),
-  age: z.coerce.number().int().min(14).max(99),
+  age: z.coerce.number().int().min(14).max(80),
 });
 
 export async function POST(request: NextRequest) {
