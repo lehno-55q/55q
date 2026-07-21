@@ -35,7 +35,7 @@ type Report = {
   recommendations?: string[];
 };
 type AppState = {
-  user: { id: string; displayName?: string | null; telegramName?: string | null; firstName?: string | null; photoUrl?: string | null; gender?: string | null; age?: number | null } | null;
+  user: { id: string; displayName?: string | null; telegramName?: string | null; firstName?: string | null; photoUrl?: string | null; gender?: string | null; pendingInviteCode?: string | null } | null;
   pair?: Pair | null;
   session?: Session | null;
 } | null;
@@ -68,7 +68,6 @@ export default function HomePage() {
   const [browserOnly, setBrowserOnly] = useState(false);
   const [profileJustSaved, setProfileJustSaved] = useState(false);
   const [toast, setToast] = useState<{ tone: "success" | "warning" | "danger"; text: string } | null>(null);
-  const inviteFromUrl = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("invite") : "";
 
   const user = state?.user;
   const pair = state?.pair;
@@ -80,7 +79,8 @@ export default function HomePage() {
   const report = session?.freeReport || session?.fullReport;
   const userLabel = user?.displayName || user?.telegramName || user?.firstName || "";
   const avatarLabel = userLabel || "55 Вопросов";
-  const profileComplete = Boolean(user?.displayName && user?.gender && user?.age);
+  const inviteCode = user?.pendingInviteCode || "";
+  const profileComplete = Boolean(user?.displayName && user?.gender);
 
   async function refresh() {
     setState(await api("/api/me"));
@@ -241,7 +241,7 @@ export default function HomePage() {
           <PairScreen
             pair={pair}
             members={members}
-            invite={inviteFromUrl || ""}
+            invite={inviteCode}
             onSubmit={(data) => run(() => api("/api/pair", data), data.mode === "join" ? "Вы вступили в пару" : "Пара создана")}
           />
         )}
@@ -399,25 +399,17 @@ function WelcomeScreen({ onContinue }: { onContinue: () => void }) {
   );
 }
 
-function dateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function ProfileScreen({ onSubmit }: { onSubmit: (data: { displayName: string; gender: string; birthDate: string }) => Promise<void> }) {
+function ProfileScreen({ onSubmit }: { onSubmit: (data: { displayName: string; gender: string }) => Promise<void> }) {
   const [displayName, setName] = useState("");
   const [gender, setGender] = useState("");
-  const [birthDate, setBirthDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const today = new Date();
-  const minBirthDate = new Date(Date.UTC(today.getUTCFullYear() - 80, today.getUTCMonth(), today.getUTCDate()));
-  const maxBirthDate = new Date(Date.UTC(today.getUTCFullYear() - 14, today.getUTCMonth(), today.getUTCDate()));
-  const valid = displayName.trim().length >= 2 && Boolean(gender) && Boolean(birthDate);
+  const valid = displayName.trim().length >= 2 && Boolean(gender);
 
   async function submitProfile() {
     if (!valid || saving) return;
     setSaving(true);
     try {
-      await onSubmit({ displayName: displayName.trim(), gender, birthDate });
+      await onSubmit({ displayName: displayName.trim(), gender });
     } finally {
       setSaving(false);
     }
@@ -437,7 +429,6 @@ function ProfileScreen({ onSubmit }: { onSubmit: (data: { displayName: string; g
           onChange={setGender}
         />
       </FieldGroup>
-      <InputField label="Дата рождения" type="date" min={dateInputValue(minBirthDate)} max={dateInputValue(maxBirthDate)} value={birthDate} onChange={setBirthDate} />
       <Button loading={saving} disabled={!valid} onClick={submitProfile}>
         Сохранить
       </Button>
@@ -460,7 +451,7 @@ function PairScreen({
   const [name, setName] = useState("");
   const [code, setCode] = useState(invite);
   const [saving, setSaving] = useState(false);
-  const share = pair && typeof location !== "undefined" ? `${location.origin}/?invite=${pair.inviteCode}` : "";
+  const [sharing, setSharing] = useState(false);
 
   async function submitPair(data: { name?: string; mode?: "join"; inviteCode?: string }) {
     if (saving) return;
@@ -469,6 +460,16 @@ function PairScreen({
       await onSubmit(data);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function sendInviteToTelegram() {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      await api("/api/pair/share", {});
+    } finally {
+      setSharing(false);
     }
   }
 
@@ -487,13 +488,13 @@ function PairScreen({
         <Button icon={<Copy size={18} />} onClick={() => navigator.clipboard.writeText(botInvite)}>
           Скопировать ссылку
         </Button>
-        <Button asLink href={botInvite} variant="secondary" icon={<Send size={18} />}>
-          Отправить ссылку в Telegram
+        <Button loading={sharing} variant="secondary" icon={<Send size={18} />} onClick={sendInviteToTelegram}>
+          Отправить в Telegram
         </Button>
         <div className="shareRow" aria-label="Способы поделиться">
           <ShareButton label="Telegram" icon={<Send size={20} />} href={botInvite} />
-          <ShareButton label="WhatsApp" icon={<MessageCircle size={20} />} href={`https://wa.me/?text=${encodeURIComponent(share)}`} />
-          <ShareButton label="Ещё" icon={<Copy size={20} />} onClick={() => share && navigator.clipboard.writeText(share)} />
+          <ShareButton label="WhatsApp" icon={<MessageCircle size={20} />} href={`https://wa.me/?text=${encodeURIComponent(botInvite)}`} />
+          <ShareButton label="Ещё" icon={<Copy size={20} />} onClick={() => navigator.clipboard.writeText(botInvite)} />
         </div>
         <Notice tone={members.length < 2 ? "purple" : "success"} icon={<Shield size={18} />}>
           {members.length < 2 ? "Ожидаем партнёра. Как только он присоединится, вы оба получите сообщение в боте." : "Пара подтверждена. Функционал доступен."}

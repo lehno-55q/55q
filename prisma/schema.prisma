@@ -26,6 +26,7 @@ model User {
   photoUrl       String?
   displayName    String?
   gender         String?
+  pendingInviteCode String?
   birthDate      DateTime?
   age            Int?
   createdAt      DateTime      @default(now())

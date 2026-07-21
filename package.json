@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "migrate:deploy": "prisma migrate deploy",
-    "deploy:start": "npm run migrate:deploy && npm run start",
+    "deploy:start": "npm run migrate:deploy && npm run telegram:setup && npm run start",
     "telegram:setup": "node scripts/setup-telegram.mjs",
     "postinstall": "prisma generate"
   },

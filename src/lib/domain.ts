@@ -2,7 +2,7 @@ import { prisma } from "./db";
 import { makeInviteCode, normalizeInviteCode } from "./invite";
 import { generateDeepSeekReport } from "./report";
 import { questions } from "./tests";
-import { inviteLink, sendTelegramMessage } from "./telegram";
+import { sendTelegramMessage } from "./telegram";
 
 export async function getUserState(userId: string) {
   const user = await prisma.user.findUnique({
@@ -30,18 +30,24 @@ export async function upsertTelegramUser(input: {
   telegramName?: string;
   firstName?: string;
   photoUrl?: string;
+  pendingInviteCode?: string | null;
 }) {
   return prisma.user.upsert({
     where: { telegramId: input.telegramId },
     create: input,
-    update: { telegramName: input.telegramName, firstName: input.firstName, photoUrl: input.photoUrl },
+    update: {
+      telegramName: input.telegramName,
+      firstName: input.firstName,
+      photoUrl: input.photoUrl,
+      pendingInviteCode: input.pendingInviteCode === undefined ? undefined : input.pendingInviteCode,
+    },
   });
 }
 
-export async function saveProfile(userId: string, displayName: string, gender: string, birthDate: Date, age: number) {
+export async function saveProfile(userId: string, displayName: string, gender: string) {
   return prisma.user.update({
     where: { id: userId },
-    data: { displayName, gender, birthDate, age },
+    data: { displayName, gender },
   });
 }
 
@@ -49,7 +55,7 @@ export async function createPair(userId: string, name: string) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const inviteCode = makeInviteCode();
     try {
-      const pair = await prisma.pair.create({
+      return await prisma.pair.create({
         data: {
           name,
           inviteCode,
@@ -57,14 +63,6 @@ export async function createPair(userId: string, name: string) {
           members: { create: { userId } },
         },
       });
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user?.telegramId) {
-        await sendTelegramMessage(
-          user.telegramId,
-          `Пара <b>${name}</b> создана. Пригласите партнера: ${inviteLink(inviteCode)}`,
-        );
-      }
-      return pair;
     } catch {
       continue;
     }
@@ -79,8 +77,11 @@ export async function joinPair(userId: string, rawCode: string) {
   if (pair.members.some((member) => member.userId === userId)) return pair;
   if (pair.members.length >= 2) throw new Error("В этой паре уже два участника");
 
-  await prisma.pairMember.create({ data: { pairId: pair.id, userId } });
-  await notifyPair(pair.id, `🎉 <b>Поздравляем, пара подтверждена!</b>\nВам доступен весь функционал бота.`);
+  await prisma.$transaction([
+    prisma.pairMember.create({ data: { pairId: pair.id, userId } }),
+    prisma.user.update({ where: { id: userId }, data: { pendingInviteCode: null } }),
+  ]);
+  await notifyPair(pair.id, "🎉 <b>Поздравляем, пара подтверждена!</b>\nВам доступен весь функционал бота.");
   return pair;
 }
 

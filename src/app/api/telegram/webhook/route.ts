@@ -1,8 +1,10 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { upsertTelegramUser } from "@/lib/domain";
+import { normalizeInviteCode } from "@/lib/invite";
 import { confirmLoginToken, parseAuthPayload } from "@/lib/login-token";
-import { botStartLink, inviteLink, sendTelegramMessage } from "@/lib/telegram";
+import { botStartLink, sendTelegramMessage } from "@/lib/telegram";
 
 function timingSafeEqualText(a: string, b: string) {
   const left = Buffer.from(a);
@@ -99,6 +101,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  const inviteCode = normalizeInviteCode(payload);
+  const pair = inviteCode ? await prisma.pair.findUnique({ where: { inviteCode } }) : null;
+  if (pair) {
+    await upsertTelegramUser({
+      telegramId: String(message.from?.id || chatId),
+      telegramName: message.from?.username,
+      firstName: message.from?.first_name,
+      pendingInviteCode: inviteCode,
+    });
+    await sendTelegramMessage(
+      String(chatId),
+      `✅ Инвайт-код <code>${inviteCode}</code> сохранён.\nОткройте приложение 55 Вопросов, создайте профиль и подтвердите присоединение к паре <b>${pair.name}</b>.`,
+    );
+    return NextResponse.json({ ok: true });
+  }
+
   if (!payload) {
     await sendTelegramMessage(
       String(chatId),
@@ -107,7 +125,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const link = payload ? inviteLink(payload) : botStartLink();
-  await sendTelegramMessage(String(chatId), `Добро пожаловать в 55 Вопросов. Откройте приложение: ${link}`);
+  await sendTelegramMessage(String(chatId), `Добро пожаловать в 55 Вопросов. Откройте приложение: ${botStartLink()}`);
   return NextResponse.json({ ok: true });
 }
