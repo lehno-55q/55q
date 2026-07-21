@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
 import { confirmLoginToken, parseAuthPayload } from "@/lib/login-token";
 import { botStartLink, inviteLink, sendTelegramMessage } from "@/lib/telegram";
 
@@ -9,15 +10,35 @@ function timingSafeEqualText(a: string, b: string) {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
+function commandTargetMatches(command: string, botUsername?: string) {
+  const [, target] = command.split("@");
+  return !target || !botUsername || target.toLowerCase() === botUsername.toLowerCase();
+}
+
+function isCommand(text: string, commandName: string, botUsername?: string) {
+  const command = text.trim().split(/\s+/)[0] || "";
+  const [name] = command.split("@");
+  return name === `/${commandName}` && commandTargetMatches(command, botUsername);
+}
+
 function extractStartPayload(text: string, botUsername?: string) {
   const parts = text.trim().split(/\s+/);
   const command = parts[0] || "";
   if (!command.startsWith("/start")) return null;
-  if (command.includes("@") && botUsername) {
-    const target = command.split("@")[1]?.toLowerCase();
-    if (target !== botUsername.toLowerCase()) return null;
-  }
+  if (!commandTargetMatches(command, botUsername)) return null;
   return parts.slice(1).join(" ");
+}
+
+async function resetAllUserData() {
+  await prisma.$transaction([
+    prisma.payment.deleteMany(),
+    prisma.answer.deleteMany(),
+    prisma.testSession.deleteMany(),
+    prisma.pairMember.deleteMany(),
+    prisma.pair.deleteMany(),
+    prisma.loginToken.deleteMany(),
+    prisma.user.deleteMany(),
+  ]);
 }
 
 export async function POST(request: NextRequest) {
@@ -34,15 +55,31 @@ export async function POST(request: NextRequest) {
   const message = update.message;
   const chatId = message?.chat?.id;
   const text = message?.text || "";
-  const payload = extractStartPayload(text, process.env.TELEGRAM_BOT_USERNAME || "ai_55q_bot");
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME || "ai_55q_bot";
+
   console.info("[telegram_auth] webhook_received", {
     updateId: update.update_id,
     hasChatId: Boolean(chatId),
     command: text.split(/\s+/)[0] || "",
-    hasPayload: Boolean(payload),
   });
 
-  if (!chatId || payload === null) return NextResponse.json({ ok: true });
+  if (!chatId) return NextResponse.json({ ok: true });
+
+  if (isCommand(text, "reset", botUsername)) {
+    const username = String(message.from?.username || "").toLowerCase();
+    if (username !== "lehnovi4") {
+      await sendTelegramMessage(String(chatId), "<b>⛔ Команда недоступна</b>");
+      return NextResponse.json({ ok: true });
+    }
+
+    await resetAllUserData();
+    console.warn("[telegram_admin] reset_completed", { by: username, chatId: String(chatId) });
+    await sendTelegramMessage(String(chatId), "<b>✅ Данные очищены</b>\nУдалены пользователи, пары, ответы, тесты, платежи и временные токены входа.");
+    return NextResponse.json({ ok: true });
+  }
+
+  const payload = extractStartPayload(text, botUsername);
+  if (payload === null) return NextResponse.json({ ok: true });
 
   const authToken = parseAuthPayload(payload);
   if (authToken) {
