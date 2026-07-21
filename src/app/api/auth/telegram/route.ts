@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
     telegramId: String(miniUser.id),
     telegramName: miniUser.username,
     firstName: miniUser.first_name,
+    photoUrl: miniUser.photo_url,
   });
   await setUserSession(user.id);
   return NextResponse.json({ ok: true, user });

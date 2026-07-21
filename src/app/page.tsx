@@ -1,8 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft,
   Brain,
   Check,
   Copy,
@@ -36,12 +35,12 @@ type Report = {
   recommendations?: string[];
 };
 type AppState = {
-  user: { id: string; displayName?: string | null; telegramName?: string | null; firstName?: string | null; gender?: string | null; age?: number | null } | null;
+  user: { id: string; displayName?: string | null; telegramName?: string | null; firstName?: string | null; photoUrl?: string | null; gender?: string | null; age?: number | null } | null;
   pair?: Pair | null;
   session?: Session | null;
 } | null;
 
-type Screen = "home" | "tests" | "profile" | "pair" | "test" | "result";
+type Screen = "home" | "tests" | "welcome" | "profile" | "pair" | "test" | "result";
 type ButtonVariant = "primary" | "secondary" | "danger" | "outline" | "ghost";
 
 function formatInviteCode(code: string) {
@@ -79,6 +78,7 @@ export default function HomePage() {
   const mineReady = userAnswers.length >= questions.length;
   const report = session?.freeReport || session?.fullReport;
   const userLabel = user?.displayName || user?.telegramName || user?.firstName || "";
+  const avatarLabel = userLabel || "55 Р’РѕРїСЂРѕСЃРѕРІ";
 
   async function refresh() {
     setState(await api("/api/me"));
@@ -98,10 +98,10 @@ export default function HomePage() {
     if (!environmentReady || browserOnly || !state || !user) return;
     let nextScreen: Screen | null = null;
     if (!user.displayName || !user.gender || !user.age) {
-      nextScreen = "profile";
+      if (screen !== "welcome" && screen !== "profile") nextScreen = "welcome";
     } else if (!pair || members.length < 2) {
       nextScreen = "pair";
-    } else if (screen === "profile" || screen === "pair") {
+    } else if (screen === "welcome" || screen === "profile" || screen === "pair") {
       nextScreen = "home";
     }
     if (nextScreen && nextScreen !== screen) {
@@ -137,11 +137,10 @@ export default function HomePage() {
         await api("/api/auth/telegram", { initData: tg.initData });
         if (!cancelled) {
           await refresh();
-          setToast({ tone: "success", text: "Вход через Telegram выполнен" });
         }
       } catch (error) {
         if (!cancelled) {
-          setToast({ tone: "danger", text: error instanceof Error ? error.message : "Не удалось войти через Mini App" });
+          setToast({ tone: "danger", text: error instanceof Error ? error.message : "РќРµ СѓРґР°Р»РѕСЃСЊ РІРѕР№С‚Рё С‡РµСЂРµР· Mini App" });
         }
       } finally {
         if (!cancelled) setBusy(false);
@@ -162,7 +161,7 @@ export default function HomePage() {
       await refresh();
       if (successText) setToast({ tone: "success", text: successText });
     } catch (error) {
-      setToast({ tone: "danger", text: error instanceof Error ? error.message : "Что-то пошло не так" });
+      setToast({ tone: "danger", text: error instanceof Error ? error.message : "Р§С‚Рѕ-С‚Рѕ РїРѕС€Р»Рѕ РЅРµ С‚Р°Рє" });
     } finally {
       setBusy(false);
     }
@@ -170,7 +169,7 @@ export default function HomePage() {
 
   async function startTest() {
     if (!user) {
-      setToast({ tone: "warning", text: "Откройте приложение внутри Telegram, чтобы продолжить" });
+      setToast({ tone: "warning", text: "РћС‚РєСЂРѕР№С‚Рµ РїСЂРёР»РѕР¶РµРЅРёРµ РІРЅСѓС‚СЂРё Telegram, С‡С‚РѕР±С‹ РїСЂРѕРґРѕР»Р¶РёС‚СЊ" });
       return;
     }
     if (!user.displayName || !user.gender || !user.age) return setScreen("profile");
@@ -190,7 +189,7 @@ export default function HomePage() {
       } else {
         setScreen("result");
       }
-    }, "Ответ сохранён");
+    }, "РћС‚РІРµС‚ СЃРѕС…СЂР°РЅС‘РЅ");
   }
 
   function navigate(nextScreen: Screen) {
@@ -207,17 +206,19 @@ export default function HomePage() {
 
   return (
     <main className="appShell">
-      <section className="appFrame" aria-label="55 Вопросов application">
+      <section className="appFrame" aria-label="55 Р’РѕРїСЂРѕСЃРѕРІ application">
         <AppHeader
           screen={screen}
           userName={userLabel}
-          onBack={screen === "home" ? undefined : () => navigate("home")}
+          avatarUrl={user?.photoUrl || ""}
+          avatarLabel={avatarLabel}
         />
 
         {toast && <Toast tone={toast.tone}>{toast.text}</Toast>}
 
         {screen === "home" && <HomeScreen busy={busy} onStart={startTest} onTests={() => navigate("tests")} />}
         {screen === "tests" && <TestsScreen onStart={startTest} />}
+        {screen === "welcome" && <WelcomeScreen onContinue={() => navigate("profile")} />}
         {screen === "profile" && (
           <ProfileScreen
             busy={busy}
@@ -225,7 +226,7 @@ export default function HomePage() {
               run(async () => {
                 await api("/api/profile", data);
                 setScreen("pair");
-              }, "Профиль сохранён")
+              }, "РџСЂРѕС„РёР»СЊ СЃРѕС…СЂР°РЅС‘РЅ")
             }
           />
         )}
@@ -235,7 +236,7 @@ export default function HomePage() {
             members={members}
             invite={inviteFromUrl || ""}
             busy={busy}
-            onSubmit={(data) => run(() => api("/api/pair", data), data.mode === "join" ? "Вы вступили в пару" : "Пара создана")}
+            onSubmit={(data) => run(() => api("/api/pair", data), data.mode === "join" ? "Р’С‹ РІСЃС‚СѓРїРёР»Рё РІ РїР°СЂСѓ" : "РџР°СЂР° СЃРѕР·РґР°РЅР°")}
           />
         )}
         {screen === "test" && session && (
@@ -248,7 +249,7 @@ export default function HomePage() {
             partnerReady={partnerReady}
             unlocked={session?.fullUnlocked}
             sessionId={session?.id}
-            onUnlock={(sessionId) => run(() => api("/api/payment/mock", { sessionId }), "Полный отчёт открыт")}
+            onUnlock={(sessionId) => run(() => api("/api/payment/mock", { sessionId }), "РџРѕР»РЅС‹Р№ РѕС‚С‡С‘С‚ РѕС‚РєСЂС‹С‚")}
           />
         )}
       </section>
@@ -259,26 +260,20 @@ export default function HomePage() {
 function AppHeader({
   screen,
   userName,
-  onBack,
+  avatarUrl,
+  avatarLabel,
 }: {
   screen: Screen;
   userName: string;
-  onBack?: () => void;
+  avatarUrl: string;
+  avatarLabel: string;
 }) {
   const title = screen === "home" ? "55 Вопросов" : screen === "tests" ? "Выберите тест" : screen === "pair" ? "Пригласите партнёра" : screen === "result" ? "Ваш результат" : "55 Вопросов";
 
   return (
     <header className="appHeader">
       <div className="headerLeft">
-        {onBack ? (
-          <IconButton label="Назад" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </IconButton>
-        ) : (
-          <span className="brandMark" aria-hidden="true">
-            <Heart size={20} />
-          </span>
-        )}
+        <AvatarMark src={avatarUrl} label={avatarLabel} />
         <div>
           <p className="eyebrow">{userName || "55 Вопросов"}</p>
           <h1 className="headerTitle">{title}</h1>
@@ -288,27 +283,36 @@ function AppHeader({
   );
 }
 
+function AvatarMark({ src, label }: { src: string; label: string }) {
+  const fallback = label.trim().slice(0, 1).toUpperCase() || "5";
+  return (
+    <span className="avatarMark" aria-label={label}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {src ? <img src={src} alt="" /> : <span>{fallback}</span>}
+    </span>
+  );
+}
 function HomeScreen({ busy, onStart, onTests }: { busy: boolean; onStart: () => void; onTests: () => void }) {
   return (
     <div className="screenStack">
       <section className="heroPanel" aria-labelledby="home-title">
         <div className="heroCopy">
           <h2 id="home-title">
-            Узнайте правду <span>о ваших отношениях</span>
+            РЈР·РЅР°Р№С‚Рµ РїСЂР°РІРґСѓ <span>Рѕ РІР°С€РёС… РѕС‚РЅРѕС€РµРЅРёСЏС…</span>
           </h2>
-          <p>Пройдите тест вместе с партнёром и получите персональный DeepSeek-анализ совместимости.</p>
+          <p>РџСЂРѕР№РґРёС‚Рµ С‚РµСЃС‚ РІРјРµСЃС‚Рµ СЃ РїР°СЂС‚РЅС‘СЂРѕРј Рё РїРѕР»СѓС‡РёС‚Рµ РїРµСЂСЃРѕРЅР°Р»СЊРЅС‹Р№ DeepSeek-Р°РЅР°Р»РёР· СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё.</p>
         </div>
         <DecorativeArt kind="couple" />
         <Card className="benefitCard">
-          <Feature icon={<Heart size={20} />} title="3 уникальных теста" text="Для разных этапов отношений" />
-          <Feature icon={<Brain size={20} />} title="AI-анализ" text="Краткий результат сразу после прохождения" />
-          <Feature icon={<Shield size={20} />} title="Конфиденциально" text="Ответы скрыты до завершения обоими" />
+          <Feature icon={<Heart size={20} />} title="3 СѓРЅРёРєР°Р»СЊРЅС‹С… С‚РµСЃС‚Р°" text="Р”Р»СЏ СЂР°Р·РЅС‹С… СЌС‚Р°РїРѕРІ РѕС‚РЅРѕС€РµРЅРёР№" />
+          <Feature icon={<Brain size={20} />} title="AI-Р°РЅР°Р»РёР·" text="РљСЂР°С‚РєРёР№ СЂРµР·СѓР»СЊС‚Р°С‚ СЃСЂР°Р·Сѓ РїРѕСЃР»Рµ РїСЂРѕС…РѕР¶РґРµРЅРёСЏ" />
+          <Feature icon={<Shield size={20} />} title="РљРѕРЅС„РёРґРµРЅС†РёР°Р»СЊРЅРѕ" text="РћС‚РІРµС‚С‹ СЃРєСЂС‹С‚С‹ РґРѕ Р·Р°РІРµСЂС€РµРЅРёСЏ РѕР±РѕРёРјРё" />
         </Card>
         <Button loading={busy} onClick={onStart}>
-          Создать пару и начать тест
+          РЎРѕР·РґР°С‚СЊ РїР°СЂСѓ Рё РЅР°С‡Р°С‚СЊ С‚РµСЃС‚
         </Button>
         <Button variant="ghost" onClick={onTests}>
-          Посмотреть все тесты
+          РџРѕСЃРјРѕС‚СЂРµС‚СЊ РІСЃРµ С‚РµСЃС‚С‹
         </Button>
       </section>
     </div>
@@ -318,12 +322,12 @@ function HomeScreen({ busy, onStart, onTests }: { busy: boolean; onStart: () => 
 function EnvironmentLoadingScreen() {
   return (
     <main className="appShell browserOnlyShell">
-      <section className="appFrame" aria-label="Проверка Telegram Mini App">
+      <section className="appFrame" aria-label="РџСЂРѕРІРµСЂРєР° Telegram Mini App">
         <Card className="browserOnlyCard">
           <span className="brandMark browserOnlyIcon" aria-hidden="true">
             <Heart size={24} />
           </span>
-          <SectionIntro title="55 Вопросов" text="Запускаем приложение..." />
+          <SectionIntro title="55 Р’РѕРїСЂРѕСЃРѕРІ" text="Р—Р°РїСѓСЃРєР°РµРј РїСЂРёР»РѕР¶РµРЅРёРµ..." />
         </Card>
       </section>
     </main>
@@ -333,17 +337,17 @@ function EnvironmentLoadingScreen() {
 function BrowserOnlyScreen() {
   return (
     <main className="appShell browserOnlyShell">
-      <section className="appFrame" aria-label="55 Вопросов">
+      <section className="appFrame" aria-label="55 Р’РѕРїСЂРѕСЃРѕРІ">
         <Card className="browserOnlyCard">
           <span className="brandMark browserOnlyIcon" aria-hidden="true">
             <Heart size={24} />
           </span>
           <SectionIntro
-            title="55 Вопросов"
-            text="Извините, в данный момент сервис «55 Вопросов» не работает через обычный браузер. Пожалуйста, откройте приложение в Telegram."
+            title="55 Р’РѕРїСЂРѕСЃРѕРІ"
+            text="РР·РІРёРЅРёС‚Рµ, РІ РґР°РЅРЅС‹Р№ РјРѕРјРµРЅС‚ СЃРµСЂРІРёСЃ В«55 Р’РѕРїСЂРѕСЃРѕРІВ» РЅРµ СЂР°Р±РѕС‚Р°РµС‚ С‡РµСЂРµР· РѕР±С‹С‡РЅС‹Р№ Р±СЂР°СѓР·РµСЂ. РџРѕР¶Р°Р»СѓР№СЃС‚Р°, РѕС‚РєСЂРѕР№С‚Рµ РїСЂРёР»РѕР¶РµРЅРёРµ РІ Telegram."
           />
           <Button asLink href={`https://t.me/${botUsername}`} icon={<Send size={18} />}>
-            Перейти к боту
+            РџРµСЂРµР№С‚Рё Рє Р±РѕС‚Сѓ
           </Button>
         </Card>
       </section>
@@ -354,23 +358,38 @@ function BrowserOnlyScreen() {
 function TestsScreen({ onStart }: { onStart: () => void }) {
   return (
     <div className="screenStack">
-      <SectionIntro title="Выберите тест" text="В первой версии активен основной тест для пары. Остальные сценарии уже зарезервированы в интерфейсе." />
+      <SectionIntro title="Р’С‹Р±РµСЂРёС‚Рµ С‚РµСЃС‚" text="Р’ РїРµСЂРІРѕР№ РІРµСЂСЃРёРё Р°РєС‚РёРІРµРЅ РѕСЃРЅРѕРІРЅРѕР№ С‚РµСЃС‚ РґР»СЏ РїР°СЂС‹. РћСЃС‚Р°Р»СЊРЅС‹Рµ СЃС†РµРЅР°СЂРёРё СѓР¶Рµ Р·Р°СЂРµР·РµСЂРІРёСЂРѕРІР°РЅС‹ РІ РёРЅС‚РµСЂС„РµР№СЃРµ." />
       <div className="testGrid">
         {tests.map((test, index) => (
           <button className={`testCard testTone${index}`} key={test.slug} disabled={!test.enabled} onClick={onStart}>
             <span className="testText">
               <strong>{test.title}</strong>
               <span>{test.subtitle}</span>
-              <Badge tone={index === 0 ? "pink" : index === 1 ? "purple" : "coral"}>{test.questions} вопросов</Badge>
+              <Badge tone={index === 0 ? "pink" : index === 1 ? "purple" : "coral"}>{test.questions} РІРѕРїСЂРѕСЃРѕРІ</Badge>
             </span>
             <DecorativeArt kind={index === 0 ? "couple-small" : index === 1 ? "date" : "hot"} />
           </button>
         ))}
       </div>
       <Notice tone="purple" icon={<Lock size={18} />}>
-        Тест 18+ доступен только пользователям старше 18 лет.
+        РўРµСЃС‚ 18+ РґРѕСЃС‚СѓРїРµРЅ С‚РѕР»СЊРєРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏРј СЃС‚Р°СЂС€Рµ 18 Р»РµС‚.
       </Notice>
     </div>
+  );
+}
+
+function WelcomeScreen({ onContinue }: { onContinue: () => void }) {
+  return (
+    <Card className="formCard welcomeCard">
+      <span className="brandMark browserOnlyIcon" aria-hidden="true">
+        <Heart size={24} />
+      </span>
+      <SectionIntro
+        title="Р Р°РґС‹ РІР°СЃ РІРёРґРµС‚СЊ"
+        text="Р”РѕР±СЂРѕ РїРѕР¶Р°Р»РѕРІР°С‚СЊ РІ РїСЂРёР»РѕР¶РµРЅРёРµ 55 Р’РѕРїСЂРѕСЃРѕРІ. Р—РґРµСЃСЊ РІС‹ СЃРјРѕР¶РµС‚Рµ РїСЂРѕР№С‚Рё С‚РµСЃС‚ РІРјРµСЃС‚Рµ СЃ РїР°СЂС‚РЅС‘СЂРѕРј Рё РїРѕР»СѓС‡РёС‚СЊ Р±РµСЂРµР¶РЅС‹Р№ AI-Р°РЅР°Р»РёР· РІР°С€РёС… РѕС‚РЅРѕС€РµРЅРёР№."
+      />
+      <Button onClick={onContinue}>РџСЂРѕРґРѕР»Р¶РёС‚СЊ</Button>
+    </Card>
   );
 }
 
@@ -382,22 +401,21 @@ function ProfileScreen({ busy, onSubmit }: { busy: boolean; onSubmit: (data: { d
 
   return (
     <Card className="formCard">
-      <SectionIntro title="Создайте профиль" text="Эти данные нужны, чтобы точнее адаптировать вопросы и отчёт для вашей пары." />
-      <InputField label="Имя или ник" value={displayName} onChange={setName} placeholder="Например, Маша" error={displayName && displayName.length < 2 ? "Минимум 2 символа" : ""} />
-      <FieldGroup label="Пол">
+      <SectionIntro title="Р”Р°РІР°Р№С‚Рµ Р·РЅР°РєРѕРјРёС‚СЊСЃСЏ" text="Р­С‚Рё РґР°РЅРЅС‹Рµ РЅСѓР¶РЅС‹ РЅР°Рј, С‡С‚РѕР±С‹ С‚РѕС‡РЅРµРµ Р°РґР°РїС‚РёСЂРѕРІР°С‚СЊ РІРѕРїСЂРѕСЃС‹ Рё РѕС‚С‡С‘С‚ РґР»СЏ РІР°С€РµР№ РїР°СЂС‹." />
+      <InputField label="РРјСЏ РёР»Рё РЅРёРє" value={displayName} onChange={setName} placeholder="РќР°РїСЂРёРјРµСЂ, РњР°С€Р°" error={displayName && displayName.length < 2 ? "РњРёРЅРёРјСѓРј 2 СЃРёРјРІРѕР»Р°" : ""} />
+      <FieldGroup label="РџРѕР»">
         <RadioGroup
           options={[
-            { label: "Женский", value: "female" },
-            { label: "Мужской", value: "male" },
-            { label: "Другой", value: "other" },
+            { label: "РњСѓР¶СЃРєРѕР№", value: "male" },
+            { label: "Р–РµРЅСЃРєРёР№", value: "female" },
           ]}
           value={gender}
           onChange={setGender}
         />
       </FieldGroup>
-      <InputField label="Возраст" type="number" min={14} max={99} value={String(age)} onChange={(value) => setAge(Number(value))} />
+      <AgeSlider value={age} onChange={setAge} />
       <Button loading={busy} disabled={!valid} onClick={() => onSubmit({ displayName: displayName.trim(), gender, age })}>
-        Сохранить
+        РЎРѕС…СЂР°РЅРёС‚СЊ
       </Button>
     </Card>
   );
@@ -426,26 +444,26 @@ function PairScreen({
     return (
       <div className="screenStack inviteScreen">
         <DecorativeArt kind="invite" />
-        <SectionIntro title="Пригласите партнёра" text="Пока второй участник не присоединится, тесты и результаты будут недоступны." />
-        <div className="inviteCode" aria-label={`Код приглашения ${pair.inviteCode}`}>
+        <SectionIntro title="РџСЂРёРіР»Р°СЃРёС‚Рµ РїР°СЂС‚РЅС‘СЂР°" text="РџРѕРєР° РІС‚РѕСЂРѕР№ СѓС‡Р°СЃС‚РЅРёРє РЅРµ РїСЂРёСЃРѕРµРґРёРЅРёС‚СЃСЏ, С‚РµСЃС‚С‹ Рё СЂРµР·СѓР»СЊС‚Р°С‚С‹ Р±СѓРґСѓС‚ РЅРµРґРѕСЃС‚СѓРїРЅС‹." />
+        <div className="inviteCode" aria-label={`РљРѕРґ РїСЂРёРіР»Р°С€РµРЅРёСЏ ${pair.inviteCode}`}>
           <span>{formatInviteCode(pair.inviteCode)}</span>
-          <IconButton label="Скопировать код" onClick={() => navigator.clipboard.writeText(pair.inviteCode)}>
+          <IconButton label="РЎРєРѕРїРёСЂРѕРІР°С‚СЊ РєРѕРґ" onClick={() => navigator.clipboard.writeText(pair.inviteCode)}>
             <Copy size={18} />
           </IconButton>
         </div>
         <Button icon={<Copy size={18} />} onClick={() => navigator.clipboard.writeText(botInvite)}>
-          Скопировать ссылку
+          РЎРєРѕРїРёСЂРѕРІР°С‚СЊ СЃСЃС‹Р»РєСѓ
         </Button>
         <Button asLink href={botInvite} variant="secondary" icon={<Send size={18} />}>
-          Отправить ссылку в Telegram
+          РћС‚РїСЂР°РІРёС‚СЊ СЃСЃС‹Р»РєСѓ РІ Telegram
         </Button>
-        <div className="shareRow" aria-label="Способы поделиться">
+        <div className="shareRow" aria-label="РЎРїРѕСЃРѕР±С‹ РїРѕРґРµР»РёС‚СЊСЃСЏ">
           <ShareButton label="Telegram" icon={<Send size={20} />} href={botInvite} />
           <ShareButton label="WhatsApp" icon={<MessageCircle size={20} />} href={`https://wa.me/?text=${encodeURIComponent(share)}`} />
-          <ShareButton label="Ещё" icon={<Copy size={20} />} onClick={() => share && navigator.clipboard.writeText(share)} />
+          <ShareButton label="Р•С‰С‘" icon={<Copy size={20} />} onClick={() => share && navigator.clipboard.writeText(share)} />
         </div>
         <Notice tone={members.length < 2 ? "purple" : "success"} icon={<Shield size={18} />}>
-          {members.length < 2 ? "Ожидаем партнёра. Как только он присоединится, вы оба получите сообщение в боте." : "Пара подтверждена. Функционал доступен."}
+          {members.length < 2 ? "РћР¶РёРґР°РµРј РїР°СЂС‚РЅС‘СЂР°. РљР°Рє С‚РѕР»СЊРєРѕ РѕРЅ РїСЂРёСЃРѕРµРґРёРЅРёС‚СЃСЏ, РІС‹ РѕР±Р° РїРѕР»СѓС‡РёС‚Рµ СЃРѕРѕР±С‰РµРЅРёРµ РІ Р±РѕС‚Рµ." : "РџР°СЂР° РїРѕРґС‚РІРµСЂР¶РґРµРЅР°. Р¤СѓРЅРєС†РёРѕРЅР°Р» РґРѕСЃС‚СѓРїРµРЅ."}
         </Notice>
       </div>
     );
@@ -453,20 +471,20 @@ function PairScreen({
 
   return (
     <Card className="formCard">
-      <SectionIntro title="Создайте пару" text="Создайте новую пару и отправьте партнёру код или ссылку. Если партнёр уже создал пару, присоединитесь по invite-коду." />
-      <InputField label="Название пары" value={name} onChange={setName} placeholder="Например, Команда Луна" />
+      <SectionIntro title="РЎРѕР·РґР°Р№С‚Рµ РїР°СЂСѓ" text="РЎРѕР·РґР°Р№С‚Рµ РЅРѕРІСѓСЋ РїР°СЂСѓ Рё РѕС‚РїСЂР°РІСЊС‚Рµ РїР°СЂС‚РЅС‘СЂСѓ РєРѕРґ РёР»Рё СЃСЃС‹Р»РєСѓ. Р•СЃР»Рё РїР°СЂС‚РЅС‘СЂ СѓР¶Рµ СЃРѕР·РґР°Р» РїР°СЂСѓ, РїСЂРёСЃРѕРµРґРёРЅРёС‚РµСЃСЊ РїРѕ invite-РєРѕРґСѓ." />
+      <InputField label="РќР°Р·РІР°РЅРёРµ РїР°СЂС‹" value={name} onChange={setName} placeholder="РќР°РїСЂРёРјРµСЂ, РљРѕРјР°РЅРґР° Р›СѓРЅР°" />
       <Button loading={busy} disabled={name.trim().length < 2} onClick={() => onSubmit({ name: name.trim() })}>
-        Создать пару
+        РЎРѕР·РґР°С‚СЊ РїР°СЂСѓ
       </Button>
       <Button variant="ghost" onClick={() => setJoinOpen((value) => !value)}>
-        Присоединиться к уже созданной паре
+        РџСЂРёСЃРѕРµРґРёРЅРёС‚СЊСЃСЏ Рє СѓР¶Рµ СЃРѕР·РґР°РЅРЅРѕР№ РїР°СЂРµ
       </Button>
       {joinOpen && (
         <>
-          <Divider>или</Divider>
-          <InputField label="Инвайт-код" value={formatInviteCode(code)} onChange={(value) => setCode(value.toUpperCase())} placeholder="AB2 - C1H" maxLength={10} />
+          <Divider>РёР»Рё</Divider>
+          <InputField label="РРЅРІР°Р№С‚-РєРѕРґ" value={formatInviteCode(code)} onChange={(value) => setCode(value.toUpperCase())} placeholder="AB2 - C1H" maxLength={10} />
           <Button variant="secondary" loading={busy} disabled={code.replace(/[^A-Z0-9]/gi, "").length < 6} onClick={() => onSubmit({ mode: "join", inviteCode: code })}>
-            Вступить по коду
+            Р’СЃС‚СѓРїРёС‚СЊ РїРѕ РєРѕРґСѓ
           </Button>
         </>
       )}
@@ -482,22 +500,22 @@ function QuestionScreen({ index, total, onAnswer, disabled }: { index: number; t
   return (
     <Card className="questionCard">
       <div className="questionMeta">
-        <Badge tone="purple">{question.type === "scale" ? "Шкала 1-10" : categories[question.category]}</Badge>
+        <Badge tone="purple">{question.type === "scale" ? "РЁРєР°Р»Р° 1-10" : categories[question.category]}</Badge>
         <span>{index + 1}/{total}</span>
       </div>
       <ProgressBar value={Math.round(((index + 1) / total) * 100)} />
       <h2>{question.title}</h2>
 
       {question.type === "scale" && <SegmentedControl value={Number(value)} onChange={setValue} count={10} />}
-      {question.type === "slider" && <RangeSlider value={Number(value)} onChange={setValue} left={question.leftLabel || "Он"} right={question.rightLabel || "Она"} />}
-      {question.type === "text" && <TextArea label="Ответ" value={String(value)} onChange={setValue} placeholder="Напишите здесь..." maxLength={500} />}
+      {question.type === "slider" && <RangeSlider value={Number(value)} onChange={setValue} left={question.leftLabel || "РћРЅ"} right={question.rightLabel || "РћРЅР°"} />}
+      {question.type === "text" && <TextArea label="РћС‚РІРµС‚" value={String(value)} onChange={setValue} placeholder="РќР°РїРёС€РёС‚Рµ Р·РґРµСЃСЊ..." maxLength={500} />}
       {question.type === "single" && <RadioGroup options={question.options || []} value={String(value)} onChange={setValue} />}
       {question.type === "multi" && (
         <CheckboxGrid options={question.options || []} value={multiValue} onChange={setValue} />
       )}
 
       <Button disabled={disabled} loading={disabled} onClick={() => onAnswer(value)}>
-        Ответить
+        РћС‚РІРµС‚РёС‚СЊ
       </Button>
     </Card>
   );
@@ -523,11 +541,11 @@ function ResultScreen({
       <Card className="emptyState">
         <DecorativeArt kind="waiting" />
         <SectionIntro
-          title="Ожидаем завершения"
-          text={mineReady ? "Ваши ответы сохранены. Осталось дождаться партнёра." : "Пройдите тест, чтобы открыть результат."}
+          title="РћР¶РёРґР°РµРј Р·Р°РІРµСЂС€РµРЅРёСЏ"
+          text={mineReady ? "Р’Р°С€Рё РѕС‚РІРµС‚С‹ СЃРѕС…СЂР°РЅРµРЅС‹. РћСЃС‚Р°Р»РѕСЃСЊ РґРѕР¶РґР°С‚СЊСЃСЏ РїР°СЂС‚РЅС‘СЂР°." : "РџСЂРѕР№РґРёС‚Рµ С‚РµСЃС‚, С‡С‚РѕР±С‹ РѕС‚РєСЂС‹С‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚."}
         />
         <Notice tone={partnerReady ? "success" : "warning"} icon={<Shield size={18} />}>
-          {partnerReady ? "Партнёр уже готов." : "Ответы партнёра скрыты до завершения теста."}
+          {partnerReady ? "РџР°СЂС‚РЅС‘СЂ СѓР¶Рµ РіРѕС‚РѕРІ." : "РћС‚РІРµС‚С‹ РїР°СЂС‚РЅС‘СЂР° СЃРєСЂС‹С‚С‹ РґРѕ Р·Р°РІРµСЂС€РµРЅРёСЏ С‚РµСЃС‚Р°."}
         </Notice>
       </Card>
     );
@@ -536,8 +554,8 @@ function ResultScreen({
   return (
     <div className="screenStack resultScreen">
       <Card className="scoreCard">
-        <h2>Ваша совместимость</h2>
-        <div className="heartScore" aria-label={`Совместимость ${report.compatibility}%`}>
+        <h2>Р’Р°С€Р° СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚СЊ</h2>
+        <div className="heartScore" aria-label={`РЎРѕРІРјРµСЃС‚РёРјРѕСЃС‚СЊ ${report.compatibility}%`}>
           <Heart size={138} />
           <strong>{report.compatibility}%</strong>
         </div>
@@ -546,7 +564,7 @@ function ResultScreen({
       </Card>
 
       <Card>
-        <h2 className="cardTitle">Ключевые показатели</h2>
+        <h2 className="cardTitle">РљР»СЋС‡РµРІС‹Рµ РїРѕРєР°Р·Р°С‚РµР»Рё</h2>
         <div className="indicatorList">
           {report.indicators?.map((item) => (
             <div className="indicator" key={item.key}>
@@ -559,13 +577,13 @@ function ResultScreen({
       </Card>
 
       <Card className="summaryCard">
-        <h2>Главный вывод</h2>
+        <h2>Р“Р»Р°РІРЅС‹Р№ РІС‹РІРѕРґ</h2>
         <p>{report.freeSummary}</p>
       </Card>
 
       {unlocked ? (
         <Card className="fullReport">
-          <h2>Полный отчёт</h2>
+          <h2>РџРѕР»РЅС‹Р№ РѕС‚С‡С‘С‚</h2>
           <p>{report.fullSummary}</p>
           <div className="recommendationList">
             {report.recommendations?.map((item) => (
@@ -577,14 +595,14 @@ function ResultScreen({
         </Card>
       ) : (
         <Card className="paywallCard">
-          <h2>Откройте полный отчёт</h2>
+          <h2>РћС‚РєСЂРѕР№С‚Рµ РїРѕР»РЅС‹Р№ РѕС‚С‡С‘С‚</h2>
           <ul>
-            {["Полный анализ всех категорий", "Все совпадения и расхождения", "Что партнёр думает о вас", "Персональные рекомендации"].map((item) => (
+            {["РџРѕР»РЅС‹Р№ Р°РЅР°Р»РёР· РІСЃРµС… РєР°С‚РµРіРѕСЂРёР№", "Р’СЃРµ СЃРѕРІРїР°РґРµРЅРёСЏ Рё СЂР°СЃС…РѕР¶РґРµРЅРёСЏ", "Р§С‚Рѕ РїР°СЂС‚РЅС‘СЂ РґСѓРјР°РµС‚ Рѕ РІР°СЃ", "РџРµСЂСЃРѕРЅР°Р»СЊРЅС‹Рµ СЂРµРєРѕРјРµРЅРґР°С†РёРё"].map((item) => (
               <li key={item}><Check size={16} /> {item}</li>
             ))}
           </ul>
           <Button variant="secondary" disabled={!sessionId} onClick={() => sessionId && onUnlock(sessionId)} icon={<Lock size={18} />}>
-            {reportPriceRub} ₽
+            {reportPriceRub} в‚Ѕ
           </Button>
         </Card>
       )}
@@ -699,7 +717,7 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 
 function SegmentedControl({ value, onChange, count }: { value: number; onChange: (value: number) => void; count: number }) {
   return (
-    <div className="segmented" role="radiogroup" aria-label="Шкала ответа">
+    <div className="segmented" role="radiogroup" aria-label="РЁРєР°Р»Р° РѕС‚РІРµС‚Р°">
       {Array.from({ length: count }, (_, index) => {
         const next = index + 1;
         return (
@@ -755,11 +773,27 @@ function CheckboxGrid({ options, value, onChange }: { options: string[]; value: 
 function RangeSlider({ value, onChange, left, right }: { value: number; onChange: (value: number) => void; left: string; right: string }) {
   return (
     <div className="rangeControl">
-      <input aria-label="Ползунок ответа" type="range" min={1} max={10} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <input aria-label="РџРѕР»Р·СѓРЅРѕРє РѕС‚РІРµС‚Р°" type="range" min={1} max={10} value={value} onChange={(event) => onChange(Number(event.target.value))} />
       <div>
         <span>{left}</span>
-        <span>Одинаково</span>
+        <span>РћРґРёРЅР°РєРѕРІРѕ</span>
         <span>{right}</span>
+      </div>
+    </div>
+  );
+}
+
+function AgeSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="ageSlider">
+      <div>
+        <span>Р’РѕР·СЂР°СЃС‚</span>
+        <strong>{value}</strong>
+      </div>
+      <input aria-label="Р’РѕР·СЂР°СЃС‚" type="range" min={14} max={99} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <div>
+        <span>14</span>
+        <span>99</span>
       </div>
     </div>
   );
@@ -767,7 +801,7 @@ function RangeSlider({ value, onChange, left, right }: { value: number; onChange
 
 function ProgressBar({ value, tone = "purple" }: { value: number; tone?: "purple" | "coral" }) {
   return (
-    <span className={`progressBar progress-${tone}`} aria-label={`Прогресс ${value}%`}>
+    <span className={`progressBar progress-${tone}`} aria-label={`РџСЂРѕРіСЂРµСЃСЃ ${value}%`}>
       <i style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </span>
   );
@@ -843,18 +877,18 @@ function Divider({ children }: { children: React.ReactNode }) {
 
 function DecorativeArt({ kind }: { kind: string }) {
   const map: Record<string, string> = {
-    couple: "💑",
-    "couple-small": "💞",
-    date: "💜",
-    hot: "🔥",
-    telegram: "💌",
-    invite: "💜",
-    waiting: "⏳",
-    "result-avatars": "💕",
+    couple: "рџ’‘",
+    "couple-small": "рџ’ћ",
+    date: "рџ’њ",
+    hot: "рџ”Ґ",
+    telegram: "рџ’Њ",
+    invite: "рџ’њ",
+    waiting: "вЏі",
+    "result-avatars": "рџ’•",
   };
   return (
     <div className={`art art-${kind}`} aria-hidden="true">
-      <span>{map[kind] || "💕"}</span>
+      <span>{map[kind] || "рџ’•"}</span>
     </div>
   );
 }

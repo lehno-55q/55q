@@ -29,11 +29,12 @@ export async function upsertTelegramUser(input: {
   telegramId: string;
   telegramName?: string;
   firstName?: string;
+  photoUrl?: string;
 }) {
   return prisma.user.upsert({
     where: { telegramId: input.telegramId },
     create: input,
-    update: { telegramName: input.telegramName, firstName: input.firstName },
+    update: { telegramName: input.telegramName, firstName: input.firstName, photoUrl: input.photoUrl },
   });
 }
 

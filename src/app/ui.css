@@ -53,6 +53,28 @@
   stroke-width: 2.4;
 }
 
+.avatarMark {
+  width: 44px;
+  height: 44px;
+  border: 2px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-purple));
+  color: #fff;
+  box-shadow: 0 10px 28px rgb(54 34 52 / 12%);
+  font-size: var(--text-md);
+  font-weight: 950;
+}
+
+.avatarMark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .eyebrow {
   margin: 0;
   color: var(--color-primary);
@@ -733,6 +755,35 @@
   font-weight: 800;
 }
 
+.ageSlider {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ageSlider > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 850;
+}
+
+.ageSlider strong {
+  min-width: 54px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  text-align: center;
+  font-size: var(--text-lg);
+}
+
+.ageSlider input {
+  width: 100%;
+  accent-color: var(--color-primary);
+}
+
 .resultScreen {
   padding-bottom: var(--space-8);
 }
@@ -855,6 +906,16 @@
   width: 58px;
   height: 58px;
   border-radius: 20px;
+}
+
+.welcomeCard {
+  width: min(100%, var(--content-mobile));
+  margin-inline: auto;
+  justify-items: start;
+}
+
+.welcomeCard .browserOnlyIcon {
+  justify-self: center;
 }
 
 @keyframes spin {

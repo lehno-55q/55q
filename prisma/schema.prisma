@@ -23,6 +23,7 @@ model User {
   telegramId     String        @unique
   telegramName   String?
   firstName      String?
+  photoUrl       String?
   displayName    String?
   gender         String?
   age            Int?

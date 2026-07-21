@@ -14,6 +14,7 @@ export type TelegramMiniAppUser = {
   id: number | string;
   first_name?: string;
   username?: string;
+  photo_url?: string;
 };
 
 export function verifyTelegramLogin(payload: TelegramAuthPayload) {
