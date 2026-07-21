@@ -567,6 +567,28 @@
   background: var(--color-border);
 }
 
+.textLink {
+  width: fit-content;
+  margin: 0 auto;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font: 700 var(--text-sm) / 1.4 var(--font-sans);
+  cursor: pointer;
+}
+
+.textLink:hover {
+  color: var(--color-purple);
+}
+
+.textLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 6px;
+}
+
 .inviteScreen {
   text-align: center;
 }

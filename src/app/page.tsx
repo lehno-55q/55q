@@ -66,6 +66,7 @@ export default function HomePage() {
   const [busy, setBusy] = useState(false);
   const [environmentReady, setEnvironmentReady] = useState(false);
   const [browserOnly, setBrowserOnly] = useState(false);
+  const [profileJustSaved, setProfileJustSaved] = useState(false);
   const [toast, setToast] = useState<{ tone: "success" | "warning" | "danger"; text: string } | null>(null);
   const inviteFromUrl = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("invite") : "";
 
@@ -79,6 +80,7 @@ export default function HomePage() {
   const report = session?.freeReport || session?.fullReport;
   const userLabel = user?.displayName || user?.telegramName || user?.firstName || "";
   const avatarLabel = userLabel || "55 Вопросов";
+  const profileComplete = Boolean(user?.displayName && user?.gender && user?.age);
 
   async function refresh() {
     setState(await api("/api/me"));
@@ -141,6 +143,12 @@ export default function HomePage() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!profileComplete) return;
+    const id = window.setTimeout(() => setProfileJustSaved(false), 0);
+    return () => window.clearTimeout(id);
+  }, [profileComplete]);
+
   async function run(action: () => Promise<void>, successText?: string) {
     setBusy(true);
     setToast(null);
@@ -160,7 +168,7 @@ export default function HomePage() {
       setToast({ tone: "warning", text: "Откройте приложение внутри Telegram, чтобы продолжить" });
       return;
     }
-    if (!user.displayName || !user.gender || !user.age) return setScreen("profile");
+    if (!profileComplete) return setScreen("profile");
     if (!pair || members.length < 2) return setScreen("pair");
     const created = await api("/api/session", {});
     setState({ ...state, session: created });
@@ -193,11 +201,11 @@ export default function HomePage() {
   }
 
   const activeScreen: Screen =
-    user && (!user.displayName || !user.gender || !user.age)
+    user && !profileComplete && !profileJustSaved
       ? screen === "profile"
         ? "profile"
         : "welcome"
-      : user && (!pair || members.length < 2)
+      : user && (profileJustSaved || !pair || members.length < 2)
         ? "pair"
         : screen === "welcome" || screen === "profile" || screen === "pair"
           ? "home"
@@ -223,6 +231,7 @@ export default function HomePage() {
             onSubmit={(data) =>
               run(async () => {
                 await api("/api/profile", data);
+                setProfileJustSaved(true);
                 setScreen("pair");
               }, "Профиль сохранён")
             }
@@ -233,7 +242,6 @@ export default function HomePage() {
             pair={pair}
             members={members}
             invite={inviteFromUrl || ""}
-            busy={busy}
             onSubmit={(data) => run(() => api("/api/pair", data), data.mode === "join" ? "Вы вступили в пару" : "Пара создана")}
           />
         )}
@@ -441,19 +449,28 @@ function PairScreen({
   pair,
   members,
   invite,
-  busy,
   onSubmit,
 }: {
   pair?: Pair | null;
   members: Member[];
   invite: string;
-  busy: boolean;
-  onSubmit: (data: { name?: string; mode?: "join"; inviteCode?: string }) => void;
+  onSubmit: (data: { name?: string; mode?: "join"; inviteCode?: string }) => Promise<void>;
 }) {
+  const [mode, setMode] = useState<"create" | "join">(invite ? "join" : "create");
   const [name, setName] = useState("");
   const [code, setCode] = useState(invite);
-  const [joinOpen, setJoinOpen] = useState(Boolean(invite));
+  const [saving, setSaving] = useState(false);
   const share = pair && typeof location !== "undefined" ? `${location.origin}/?invite=${pair.inviteCode}` : "";
+
+  async function submitPair(data: { name?: string; mode?: "join"; inviteCode?: string }) {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSubmit(data);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (pair) {
     const botInvite = `https://t.me/${botUsername}?start=${pair.inviteCode}`;
@@ -487,21 +504,27 @@ function PairScreen({
 
   return (
     <Card className="formCard">
-      <SectionIntro title="Создайте пару" text="Создайте новую пару и отправьте партнёру код или ссылку. Если партнёр уже создал пару, присоединитесь по invite-коду." />
-      <InputField label="Название пары" value={name} onChange={setName} placeholder="Например, Команда Луна" />
-      <Button loading={busy} disabled={name.trim().length < 2} onClick={() => onSubmit({ name: name.trim() })}>
-        Создать пару
-      </Button>
-      <Button variant="ghost" onClick={() => setJoinOpen((value) => !value)}>
-        Присоединиться к уже созданной паре
-      </Button>
-      {joinOpen && (
+      {mode === "create" ? (
         <>
-          <Divider>или</Divider>
+          <SectionIntro title="Создайте пару" text="Создайте новую пару и отправьте партнёру код или ссылку для присоединения." />
+          <InputField label="Название пары" value={name} onChange={setName} placeholder="Например, Команда Луна" />
+          <Button loading={saving} disabled={name.trim().length < 2} onClick={() => submitPair({ name: name.trim() })}>
+            Создать пару
+          </Button>
+          <button className="textLink" type="button" onClick={() => setMode("join")}>
+            Присоединиться к уже созданной паре
+          </button>
+        </>
+      ) : (
+        <>
+          <SectionIntro title="Введите инвайт-код" text="Если партнёр уже создал пару, введите код приглашения из 6 символов." />
           <InputField label="Инвайт-код" value={formatInviteCode(code)} onChange={(value) => setCode(value.toUpperCase())} placeholder="AB2 - C1H" maxLength={10} />
-          <Button variant="secondary" loading={busy} disabled={code.replace(/[^A-Z0-9]/gi, "").length < 6} onClick={() => onSubmit({ mode: "join", inviteCode: code })}>
+          <Button variant="secondary" loading={saving} disabled={code.replace(/[^A-Z0-9]/gi, "").length < 6} onClick={() => submitPair({ mode: "join", inviteCode: code })}>
             Вступить по коду
           </Button>
+          <button className="textLink" type="button" onClick={() => setMode("create")}>
+            Создать новую пару
+          </button>
         </>
       )}
     </Card>
@@ -870,10 +893,6 @@ function SectionIntro({ title, text }: { title: string; text: string }) {
       <p>{text}</p>
     </div>
   );
-}
-
-function Divider({ children }: { children: React.ReactNode }) {
-  return <div className="divider"><span>{children}</span></div>;
 }
 
 function DecorativeArt({ kind }: { kind: string }) {
