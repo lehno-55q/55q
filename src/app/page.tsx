@@ -220,7 +220,6 @@ export default function HomePage() {
         {activeScreen === "welcome" && <WelcomeScreen onContinue={() => navigate("profile")} />}
         {activeScreen === "profile" && (
           <ProfileScreen
-            busy={busy}
             onSubmit={(data) =>
               run(async () => {
                 await api("/api/profile", data);
@@ -392,11 +391,29 @@ function WelcomeScreen({ onContinue }: { onContinue: () => void }) {
   );
 }
 
-function ProfileScreen({ busy, onSubmit }: { busy: boolean; onSubmit: (data: { displayName: string; gender: string; age: number }) => void }) {
+function dateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function ProfileScreen({ onSubmit }: { onSubmit: (data: { displayName: string; gender: string; birthDate: string }) => Promise<void> }) {
   const [displayName, setName] = useState("");
   const [gender, setGender] = useState("");
-  const [age, setAge] = useState(18);
-  const valid = displayName.trim().length >= 2 && Boolean(gender) && age >= 14 && age <= 80;
+  const [birthDate, setBirthDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const today = new Date();
+  const minBirthDate = new Date(Date.UTC(today.getUTCFullYear() - 80, today.getUTCMonth(), today.getUTCDate()));
+  const maxBirthDate = new Date(Date.UTC(today.getUTCFullYear() - 14, today.getUTCMonth(), today.getUTCDate()));
+  const valid = displayName.trim().length >= 2 && Boolean(gender) && Boolean(birthDate);
+
+  async function submitProfile() {
+    if (!valid || saving) return;
+    setSaving(true);
+    try {
+      await onSubmit({ displayName: displayName.trim(), gender, birthDate });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <Card className="formCard">
@@ -412,8 +429,8 @@ function ProfileScreen({ busy, onSubmit }: { busy: boolean; onSubmit: (data: { d
           onChange={setGender}
         />
       </FieldGroup>
-      <AgeSlider value={age} onChange={setAge} />
-      <Button loading={busy} disabled={!valid} onClick={() => onSubmit({ displayName: displayName.trim(), gender, age })}>
+      <InputField label="Дата рождения" type="date" min={dateInputValue(minBirthDate)} max={dateInputValue(maxBirthDate)} value={birthDate} onChange={setBirthDate} />
+      <Button loading={saving} disabled={!valid} onClick={submitProfile}>
         Сохранить
       </Button>
     </Card>
@@ -681,8 +698,8 @@ function InputField({
   placeholder?: string;
   error?: string;
   type?: string;
-  min?: number;
-  max?: number;
+  min?: number | string;
+  max?: number | string;
   maxLength?: number;
 }) {
   const id = `field-${label.replace(/\s+/g, "-").toLowerCase()}`;
@@ -778,22 +795,6 @@ function RangeSlider({ value, onChange, left, right }: { value: number; onChange
         <span>{left}</span>
         <span>Одинаково</span>
         <span>{right}</span>
-      </div>
-    </div>
-  );
-}
-
-function AgeSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return (
-    <div className="ageSlider">
-      <div>
-        <span>Возраст</span>
-        <strong>{value}</strong>
-      </div>
-      <input aria-label="Возраст" type="range" min={14} max={80} value={value} onChange={(event) => onChange(Number(event.target.value))} />
-      <div>
-        <span>14</span>
-        <span>80</span>
       </div>
     </div>
   );

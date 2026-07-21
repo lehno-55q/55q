@@ -38,10 +38,10 @@ export async function upsertTelegramUser(input: {
   });
 }
 
-export async function saveProfile(userId: string, displayName: string, gender: string, age: number) {
+export async function saveProfile(userId: string, displayName: string, gender: string, birthDate: Date, age: number) {
   return prisma.user.update({
     where: { id: userId },
-    data: { displayName, gender, age },
+    data: { displayName, gender, birthDate, age },
   });
 }
 

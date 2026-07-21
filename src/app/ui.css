@@ -755,35 +755,6 @@
   font-weight: 800;
 }
 
-.ageSlider {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.ageSlider > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: 850;
-}
-
-.ageSlider strong {
-  min-width: 54px;
-  border-radius: 999px;
-  padding: 8px 14px;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  text-align: center;
-  font-size: var(--text-lg);
-}
-
-.ageSlider input {
-  width: 100%;
-  accent-color: var(--color-primary);
-}
-
 .resultScreen {
   padding-bottom: var(--space-8);
 }
