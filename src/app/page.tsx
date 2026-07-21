@@ -8,7 +8,6 @@ import {
   Gift,
   Heart,
   Lock,
-  MessageCircle,
   Send,
   Shield,
 } from "lucide-react";
@@ -42,11 +41,6 @@ type AppState = {
 
 type Screen = "home" | "tests" | "welcome" | "profile" | "pair" | "test" | "result";
 type ButtonVariant = "primary" | "secondary" | "danger" | "outline" | "ghost";
-
-function formatInviteCode(code: string) {
-  const clean = code.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 6);
-  return clean.length > 3 ? `${clean.slice(0, 3)} - ${clean.slice(3)}` : clean;
-}
 
 async function api(path: string, body?: unknown) {
   const response = await fetch(path, {
@@ -215,7 +209,6 @@ export default function HomePage() {
     <main className="appShell">
       <section className="appFrame" aria-label="55 Вопросов application">
         <AppHeader
-          screen={activeScreen}
           userName={userLabel}
           avatarUrl={user?.photoUrl || ""}
           avatarLabel={avatarLabel}
@@ -240,7 +233,6 @@ export default function HomePage() {
         {activeScreen === "pair" && (
           <PairScreen
             pair={pair}
-            members={members}
             invite={inviteCode}
             onSubmit={(data) => run(() => api("/api/pair", data), data.mode === "join" ? "Вы вступили в пару" : "Пара создана")}
           />
@@ -264,25 +256,21 @@ export default function HomePage() {
 }
 
 function AppHeader({
-  screen,
   userName,
   avatarUrl,
   avatarLabel,
 }: {
-  screen: Screen;
   userName: string;
   avatarUrl: string;
   avatarLabel: string;
 }) {
-  const title = screen === "home" ? "55 Вопросов" : screen === "tests" ? "Выберите тест" : screen === "pair" ? "Пригласите партнёра" : screen === "result" ? "Ваш результат" : "55 Вопросов";
-
   return (
     <header className="appHeader">
       <div className="headerLeft">
         <AvatarMark src={avatarUrl} label={avatarLabel} />
         <div>
           <p className="eyebrow">{userName || "55 Вопросов"}</p>
-          <h1 className="headerTitle">{title}</h1>
+          <h1 className="headerTitle">55 Вопросов</h1>
         </div>
       </div>
     </header>
@@ -418,7 +406,7 @@ function ProfileScreen({ onSubmit }: { onSubmit: (data: { displayName: string; g
   return (
     <Card className="formCard">
       <SectionIntro title="Давайте знакомиться" text="Эти данные нужны нам, чтобы точнее адаптировать вопросы и отчёт для вашей пары." />
-      <InputField label="Имя или ник" value={displayName} onChange={setName} placeholder="Например, Маша" error={displayName && displayName.length < 2 ? "Минимум 2 символа" : ""} />
+      <InputField label="Имя" value={displayName} onChange={setName} placeholder="Например, Полина" error={displayName && displayName.length < 2 ? "Минимум 2 символа" : ""} />
       <FieldGroup label="Пол">
         <RadioGroup
           options={[
@@ -438,12 +426,10 @@ function ProfileScreen({ onSubmit }: { onSubmit: (data: { displayName: string; g
 
 function PairScreen({
   pair,
-  members,
   invite,
   onSubmit,
 }: {
   pair?: Pair | null;
-  members: Member[];
   invite: string;
   onSubmit: (data: { name?: string; mode?: "join"; inviteCode?: string }) => Promise<void>;
 }) {
@@ -478,9 +464,9 @@ function PairScreen({
     return (
       <div className="screenStack inviteScreen">
         <DecorativeArt kind="invite" />
-        <SectionIntro title="Пригласите партнёра" text="Пока второй участник не присоединится, тесты и результаты будут недоступны." />
+        <SectionIntro title="Пригласите партнёра" text="Пока второй участник не присоединится к вашей паре, функционал приложения не будет доступен." />
         <div className="inviteCode" aria-label={`Код приглашения ${pair.inviteCode}`}>
-          <span>{formatInviteCode(pair.inviteCode)}</span>
+          <span>{pair.inviteCode}</span>
           <IconButton label="Скопировать код" onClick={() => navigator.clipboard.writeText(pair.inviteCode)}>
             <Copy size={18} />
           </IconButton>
@@ -491,14 +477,6 @@ function PairScreen({
         <Button loading={sharing} variant="secondary" icon={<Send size={18} />} onClick={sendInviteToTelegram}>
           Отправить в Telegram
         </Button>
-        <div className="shareRow" aria-label="Способы поделиться">
-          <ShareButton label="Telegram" icon={<Send size={20} />} href={botInvite} />
-          <ShareButton label="WhatsApp" icon={<MessageCircle size={20} />} href={`https://wa.me/?text=${encodeURIComponent(botInvite)}`} />
-          <ShareButton label="Ещё" icon={<Copy size={20} />} onClick={() => navigator.clipboard.writeText(botInvite)} />
-        </div>
-        <Notice tone={members.length < 2 ? "purple" : "success"} icon={<Shield size={18} />}>
-          {members.length < 2 ? "Ожидаем партнёра. Как только он присоединится, вы оба получите сообщение в боте." : "Пара подтверждена. Функционал доступен."}
-        </Notice>
       </div>
     );
   }
@@ -519,7 +497,7 @@ function PairScreen({
       ) : (
         <>
           <SectionIntro title="Введите инвайт-код" text="Если партнёр уже создал пару, введите код приглашения из 6 символов." />
-          <InputField label="Инвайт-код" value={formatInviteCode(code)} onChange={(value) => setCode(value.toUpperCase())} placeholder="AB2 - C1H" maxLength={10} />
+          <InputField label="Инвайт-код" value={code.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 6)} onChange={(value) => setCode(value.toUpperCase())} placeholder="AB2C1H" maxLength={6} />
           <Button variant="secondary" loading={saving} disabled={code.replace(/[^A-Z0-9]/gi, "").length < 6} onClick={() => submitPair({ mode: "join", inviteCode: code })}>
             Вступить по коду
           </Button>
@@ -851,27 +829,6 @@ function Toast({ children, tone }: { children: React.ReactNode; tone: "success" 
       {tone === "success" ? <Check size={16} /> : <Shield size={16} />}
       <span>{children}</span>
     </div>
-  );
-}
-
-function ShareButton({ label, icon, href, onClick }: { label: string; icon: React.ReactNode; href?: string; onClick?: () => void }) {
-  const content = (
-    <>
-      <span>{icon}</span>
-      <small>{label}</small>
-    </>
-  );
-  if (href) {
-    return (
-      <a className="shareButton" href={href} target="_blank" rel="noreferrer">
-        {content}
-      </a>
-    );
-  }
-  return (
-    <button className="shareButton" onClick={onClick}>
-      {content}
-    </button>
   );
 }
 

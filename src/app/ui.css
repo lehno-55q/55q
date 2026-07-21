@@ -1,4 +1,4 @@
-.appShell {
+﻿.appShell {
   min-height: 100vh;
   padding: clamp(0px, 2.2vw, var(--space-6));
   background:
@@ -118,8 +118,7 @@
 .segmented button:focus-visible,
 .chipGrid button:focus-visible,
 .optionTiles button:focus-visible,
-.testCard:focus-visible,
-.shareButton:focus-visible {
+.testCard:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
@@ -612,43 +611,6 @@
   overflow-wrap: anywhere;
 }
 
-.shareRow {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
-}
-
-.shareButton {
-  border: 0;
-  background: transparent;
-  color: var(--color-text);
-  display: grid;
-  place-items: center;
-  gap: var(--space-2);
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.shareButton > span {
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  background: #fff;
-  box-shadow: var(--shadow-card);
-  color: var(--color-primary);
-}
-
-.shareButton:nth-child(2) > span {
-  color: var(--color-success);
-}
-
-.shareButton small {
-  color: var(--color-text);
-  font-size: var(--text-xs);
-  font-weight: 800;
-}
 
 .questionCard {
   width: min(100%, var(--content-mobile));
@@ -1030,10 +992,6 @@
     font-size: 52px;
   }
 
-  .shareRow {
-    gap: var(--space-2);
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   *,
